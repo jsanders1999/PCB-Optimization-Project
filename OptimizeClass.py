@@ -100,24 +100,32 @@ class optimize_k:
         return gradient_descent_normed(u_start, self.Q, self.R, self.pcb.cube.resolution,  n_steps, stepsize, u_norm)
     
     def line_search_line_min(self, u_start, n_steps, u_norm):
-        u = u_start
-        Vs = [self.opti_func(u)]
-        improv = self.opti_func(u)
+        u_old = u_start
+        Vs = [self.opti_func(u_old)]
+        improv = self.opti_func(u_old)
         count = 0
         while count < n_steps:# and improv>1:
-            grad = self.opti_grad(u)
-            u_normed = u/np.linalg.norm(u)
-            d = grad -  (u_normed @ grad)*u_normed 
-            if d@self.R@d*u@self.Q@d > d@self.Q@d*u@self.R@d:
-                t_optimal = 1/2*(d@self.Q@d*u@self.R@u - d@self.R@d*u@self.Q@u)/(d@self.R@d*u@self.Q@d-d@self.Q@d*u@self.R@d)
-                u += t_optimal*d
+            grad = self.opti_grad(u_old)
+            u_normed = u_old/np.linalg.norm(u_old)
+            d = grad -  (u_normed.T @ grad)*u_normed  #project the gradient onto the tangent plane of the contraint sphere
+            if True: #d.T@self.R@d * u_old.T@self.Q@d > d.T@self.Q@d * u_old.T@self.R@d:
+                func = lambda t: self.opti_func(u_old - t*d)
+                t_optimal = sp.optimize.minimize(func, np.random.normal()).x[0]
+                print(t_optimal)
+                #t_optimal = -1/2*(d.T@self.Q@d * u_old.T@self.R@u_old - d.T@self.R@d * u_old.T@self.Q@u_old)/(d.T@self.R@d * u_old.T@self.Q@d - d.T@self.Q@d * u_old.T@self.R@d)
+                u_new = u_old - t_optimal*d
             else:
-                print(count, self.opti_func(u), "?? D vector scaled to sphere")            
-                u = -d
-            u = ((u_norm)/np.linalg.norm(u))*u
-            improv = abs(Vs[-1] - self.opti_func(u))
-            Vs.append(self.opti_func(u))
+                print(count, self.opti_func(u_old), "No minimium found in line search")            
+                u_new = u_old + 1e-5*np.linalg.norm(u_old)*np.random.normal(size = u_old.size) #random perturbation
+            u_new = ((u_new)/np.linalg.norm(u_old))*u_new
+            improv = Vs[-1] - self.opti_func(u_new)
+            if improv>0:
+                u_old = u_new
+            else:
+                print("no improvement!")
+                u_old +=  1e-5*np.linalg.norm(u_old)*np.random.normal(size = u_old.size)
+            Vs.append(self.opti_func(u_old))
             count +=1
             if self.verbose:
                 print(count, " : ", Vs[-1])
-        return u, Vs
+        return u_old, Vs

@@ -8,6 +8,7 @@ import json
 from CubeClass import Cube
 from DipoleFields import *
 from LexgraphicTools import *
+from hatfunctions import *
 
 
 class PCB_u:
@@ -303,7 +304,6 @@ class PCB_u:
             ax.quiver(self.cube.Y[:,frac_index,:], self.cube.Z[:,frac_index,:], U_y[:,frac_index,:], U_z[:,frac_index,:])
         else:
             ax.quiver(self.cube.X[frac_index,:,:], self.cube.Z[frac_index,:,:], U_x[frac_index,:,:], U_z[frac_index,:,:])
-        
         return fig, ax
 
 
@@ -314,14 +314,72 @@ class PCB_u:
         self.calc_mag_field()
         if (not fig) and (not ax):
             ax = plt.figure().add_subplot(projection='3d')
-
         ax.set_xlabel('x')
         ax.set_ylabel('y')
-
         U_x = 0.25*self.field[:,:,:,0]/np.max(self.field)
         U_y = 0.25*self.field[:,:,:,1]/np.max(self.field)
         U_z = 0.25*self.field[:,:,:,2]/np.max(self.field)
-        
         ax.quiver(self.cube.X, self.cube.Y, self.cube.Z, U_x, U_y, U_z)
-       
         return ax
+    
+    def K_ij_x(self, x_s, y_s, i, j):
+        return K0_x((x_s-self.x[i])/self.h, (y_s-self.y[j])/self.h )
+
+    def K_ij_y(self, x_s, y_s, i, j):
+        return K0_y((x_s-self.x[i])/self.h, (y_s-self.y[j])/self.h )
+
+    def K_x(self, x_s, y_s):
+        I, J = np.meshgrid(range(self.M), range(self.M))
+        return np.sum(self.u_cart[I, J]    *  self.K_ij_x(x_s, y_s, I, J))
+    
+    def K_y(self, x_s, y_s):
+        I, J = np.meshgrid(range(self.M), range(self.M))
+        return np.sum(self.u_cart[I, J]    *  self.K_ij_y(x_s, y_s, I, J))
+
+    def K(self, x_s, y_s):
+        return np.array(self.K_x(x_s, y_s), self.K_y(x_s, y_s))
+    
+    def curl_potential_ij(self, x_s, y_s, i, j):
+        return self.h*curl_potential_0((x_s-self.x[i])/self.h, (y_s-self.y[j])/self.h )
+
+    def curl_potential(self, x_s, y_s):
+        I, J = np.meshgrid(range(self.M), range(self.M))
+        return np.sum(self.u_cart[I, J]    *  self.curl_potential_ij(x_s, y_s, I, J))
+
+    def plot_K(self, fig = None, ax = None):
+        if (not fig) and (not ax):
+            fig1, ax1 = plt.subplots(1,1)
+            fig2, ax2 = plt.subplots(1,1)
+            fig3, ax3 = plt.subplots(1,1)
+        #Must be of a higher resoltion than self.x and not on the same points
+        x = np.linspace(*self.x_bnd, 10*self.M + 2)[1:-1]
+        y = np.linspace(*self.y_bnd, 10*self.M + 2)[1:-1]
+
+        X, Y = np.meshgrid(x, y)
+        K_x = np.vectorize(self.K_x)
+        K_y = np.vectorize(self.K_y)
+        K_X = K_x(X, Y) 
+        K_Y = K_y(X, Y) 
+        ax1.quiver(X, Y, K_X, K_Y)
+        ax1.set_aspect('equal')
+        ax2.imshow(K_X)
+        ax3.imshow(K_Y)
+        return fig, ax
+    
+    def plot_curl_potential(self, fig = None, ax = None, contour_lvl = False):
+        if (not fig) and (not ax):
+            fig, ax = plt.subplots(1,1)
+        #Must be of a higher resoltion than self.x and not on the same points
+        x = np.linspace(*self.x_bnd, 10*self.M + 2)[1:-1]
+        y = np.linspace(*self.y_bnd, 10*self.M + 2)[1:-1]
+
+        X, Y = np.meshgrid(x, y)
+        phi = np.vectorize(self.curl_potential)
+        Phi = phi(X,Y)
+        if contour_lvl:
+            pc = ax.contour(X, Y, Phi, levels = contour_lvl)
+            fig.colorbar(pc)
+        else:
+            pc = ax.pcolormesh(X,Y, Phi)
+            fig.colorbar(pc)
+        return fig, ax
