@@ -1,7 +1,7 @@
 import numpy as np
 
 class Cube:
-    def __init__(self, resolution, x = [-0.5, 0.5], y = [-0.5, 0.5], z = [0.1, 1]):
+    def __init__(self, resolution, x = [-0.5, 0.5], y = [-0.5, 0.5], z = [0.2, 1.2]):
         """
         Initialize the cube object
 

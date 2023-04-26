@@ -15,7 +15,7 @@ from PCBClass import PCB_u
 from OptimizeClass import optimize_k
 
 N = 10
-M = 50
+M = 500
 
 cube = Cube(N)
 pcb = PCB_u(M, None, cube)
@@ -48,7 +48,7 @@ u , Vu = opti_instance.line_search_line_min(u_start, 50, uNorm/M**2)
 
 pcb.u_cart = np.reshape(u, (M,M), order = "C")
 
-pcb.plot_curl_potential()
+#pcb.plot_curl_potential()
 #pcb.plot_curl_potential( contour_lvl = 10)
 
 
@@ -64,15 +64,15 @@ pcb.plot_curl_potential()
 # plt.show()
 
 
-# # fig1, ax1 = plt.subplots(1,1)
+fig1, ax1 = plt.subplots(1,1)
 
-# # pc1 = ax1.contour(pcb.X, pcb.Y, pcb.u_cart, levels = 10)
-# # plt.colorbar(pc1)
-# # ax1.set_title("contours of u vector")
-# # ax1.set_xlabel("x [m]")
-# # ax1.set_ylabel("y [m]")
-# # ax1.set_aspect("equal")
-# # plt.show()
+pc1 = ax1.contour(pcb.X, pcb.Y, pcb.u_cart, levels = 10)
+plt.colorbar(pc1)
+ax1.set_title("contours of u vector")
+ax1.set_xlabel("x [m]")
+ax1.set_ylabel("y [m]")
+ax1.set_aspect("equal")
+plt.show()
 
 fig2, ax2 = plt.subplots(1,1)
 
