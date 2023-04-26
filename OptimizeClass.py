@@ -129,3 +129,30 @@ class optimize_k:
             if self.verbose:
                 print(count, " : ", Vs[-1])
         return u_old, Vs
+
+    def line_search_line_perturb(self, u_start, n_steps, u_norm):
+        u = u_start
+        Vs = [self.opti_func(u)]
+        improv = self.opti_func(u)
+        count = 0
+        while count < n_steps:# and improv>1:
+            grad = self.opti_grad(u)
+            u_normed = u/np.linalg.norm(u)
+            d = grad -  (u_normed @ grad)*u_normed 
+            if d@self.R@d*u@self.Q@d > d@self.Q@d*u@self.R@d and improv > 1:
+                t_optimal = 1/2*(d@self.Q@d*u@self.R@u - d@self.R@d*u@self.Q@u)/(d@self.R@d*u@self.Q@d-d@self.Q@d*u@self.R@d)
+                u += t_optimal*d
+            elif d@self.R@d*u@self.Q@d > d@self.Q@d*u@self.R@d:
+                print(count,self.opti_func(u), "perturb u randomly")            
+                random_pert = np.random.rand(len(u))
+                u = u + 0.1*(np.linalg.norm(u)/np.linalg.norm(random_pert))*random_pert
+            else:
+                print(count, self.opti_func(u), "?? D vector scaled to sphere")            
+                u = -d
+            u = ((u_norm)/np.linalg.norm(u))*u
+            improv = abs(Vs[-1] - self.opti_func(u))
+            Vs.append(self.opti_func(u))
+            count +=1
+            if self.verbose:
+                print(count, " : ", Vs[-1])
+        return u, Vs
