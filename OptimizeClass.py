@@ -99,7 +99,7 @@ class optimize_k:
     def gradient_descent_normed(self, u_start, n_steps, stepsize, u_norm):
         return gradient_descent_normed(u_start, self.Q, self.R, self.pcb.cube.resolution,  n_steps, stepsize, u_norm)
     
-    def line_search_line_min(self, u_start, n_steps, u_norm):
+    def line_search_line_min(self, u_start, n_steps, u_norm, alpha = 0.5):
         u_old = u_start
         Vs = [self.opti_func(u_old)]
         improv = self.opti_func(u_old)
@@ -113,17 +113,18 @@ class optimize_k:
                 t_optimal = sp.optimize.minimize(func, np.random.normal()).x[0]
                 print(t_optimal)
                 #t_optimal = -1/2*(d.T@self.Q@d * u_old.T@self.R@u_old - d.T@self.R@d * u_old.T@self.Q@u_old)/(d.T@self.R@d * u_old.T@self.Q@d - d.T@self.Q@d * u_old.T@self.R@d)
-                u_new = u_old - t_optimal*d
+                step = alpha*step - t_optimal*d
+                u_new = u_old + step
             else:
                 print(count, self.opti_func(u_old), "No minimium found in line search")            
                 u_new = u_old + 1e-5*np.linalg.norm(u_old)*np.random.normal(size = u_old.size) #random perturbation
             u_new = ((u_new)/np.linalg.norm(u_old))*u_new
             improv = Vs[-1] - self.opti_func(u_new)
-            if improv>0:
-                u_old = u_new
-            else:
-                print("no improvement!")
-                u_old +=  1e-5*np.linalg.norm(u_old)*np.random.normal(size = u_old.size)
+            #if improv>0:
+            #    u_old = u_new
+            #else:
+            #    print("no improvement!")
+            #    u_old +=  1e-5*np.linalg.norm(u_old)*np.random.normal(size = u_old.size)
             Vs.append(self.opti_func(u_old))
             count +=1
             if self.verbose:
