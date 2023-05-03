@@ -27,6 +27,64 @@ def GradUniformity(u, Q, R, N):
     uQu = u.T@Qu
     return (N**3*Qu-(uQu/uRu)*Ru)/uRu
 
+@njit
+def cartesian_to_sphere(u):
+    """Transforms cartesian vector u to spherical vector phi
+    first entry of phi is the length of u, rest is angle coordinates
+    """
+    phi = np.zeros(len(u))
+    phi[0] = np.linalg.norm(u)
+    for i in range(1,len(u)-1):
+        phi[i] = np.arccos(u[i]/(np.sqrt(sum(u[i]**2 for i in range(i,len(u))))))
+    if u[-1] >=0:
+        phi[-1] = np.arccos(u[-1]/np.sqrt(u[-1]**2+u[-2]**2))
+    else:
+        phi[-1] = 2*np.pi-np.arccos(u[-1]/np.sqrt(u[-1]**2+u[-2]**2))
+    return phi
+
+@njit
+def sphere_to_cartesian(phi):
+    """Transforms spherical vector phi to cartesian vector u"""
+    u = np.zeros(len(phi))
+    for i in range(0,len(phi)-1):
+        u[i] = phi[0]
+        for j in range(1,i):
+            u[i]*= np.sin(phi[j])
+        u[i] *= np.cos(phi[i+1])
+    u[-1] = phi[0]
+    for j in range(1,len(phi)):
+        u[-1]*= np.sin(phi[j])
+    return u
+
+@njit
+def GradUniformity_spherical(phi, Q, R, N):
+    """ The gradient of Uniformity() for spherical coordinates"""
+    u = sphere_to_cartesian(phi)
+    grad = GradUniformity(u, Q, R, N)
+    PHI = np.zeros((len(phi),len(u)))
+    for i in range(1,len(u)):
+        PHI[0,i-1] = 1
+        for j in range(1,i):
+            PHI[0,i-1]*= np.sin(phi[j])
+        PHI[0,i-1]*=np.cos(phi[i])
+    PHI[0,-1] = 1
+    for j in range(1,len(phi)):
+        PHI[0,-1]*= np.sin(phi[j])
+    for k in range(1,len(phi-1)): ##indices not correct
+        PHI[k,k-1] = phi[0]  ##indices not correct
+        for j in range(1,k):  ##indices not correct
+            PHI[k,k-1]*= np.sin(phi[j])  ##indices not correct
+        PHI[0,i-1]*=np.cos(phi[i])      ##indices not correct
+        for i in range(k,len(u)):
+            PHI[k,i-1] = phi[0]
+            for j in range(1,i):
+                if j != k:
+                    PHI[k,i-1]*= np.sin(phi[j])
+            PHI[0,i-1]*=np.cos(phi[i])
+    ### Finish with correct indices etc.
+    return PHI@grad
+
+
 def UniformityDirected():
     """ The function that is minimized. Is a measure for the uniformity of the magnetic field in the target volume for a specific direction"""
     return
@@ -99,7 +157,7 @@ class optimize_k:
     def gradient_descent_normed(self, u_start, n_steps, stepsize, u_norm):
         return gradient_descent_normed(u_start, self.Q, self.R, self.pcb.cube.resolution,  n_steps, stepsize, u_norm)
     
-    def line_search_line_min(self, u_start, n_steps, u_norm):
+    def line_search_line_min(self, u_start, n_steps, u_norm, alpha = 0.5):
         u_old = u_start
         Vs = [self.opti_func(u_old)]
         improv = self.opti_func(u_old)
@@ -113,17 +171,18 @@ class optimize_k:
                 t_optimal = sp.optimize.minimize(func, np.random.normal()).x[0]
                 print(t_optimal)
                 #t_optimal = -1/2*(d.T@self.Q@d * u_old.T@self.R@u_old - d.T@self.R@d * u_old.T@self.Q@u_old)/(d.T@self.R@d * u_old.T@self.Q@d - d.T@self.Q@d * u_old.T@self.R@d)
-                u_new = u_old - t_optimal*d
+                step = alpha*step - t_optimal*d
+                u_new = u_old + step
             else:
                 print(count, self.opti_func(u_old), "No minimium found in line search")            
                 u_new = u_old + 1e-5*np.linalg.norm(u_old)*np.random.normal(size = u_old.size) #random perturbation
             u_new = ((u_new)/np.linalg.norm(u_old))*u_new
             improv = Vs[-1] - self.opti_func(u_new)
-            if improv>0:
-                u_old = u_new
-            else:
-                print("no improvement!")
-                u_old +=  1e-5*np.linalg.norm(u_old)*np.random.normal(size = u_old.size)
+            #if improv>0:
+            #    u_old = u_new
+            #else:
+            #    print("no improvement!")
+            #    u_old +=  1e-5*np.linalg.norm(u_old)*np.random.normal(size = u_old.size)
             Vs.append(self.opti_func(u_old))
             count +=1
             if self.verbose:
