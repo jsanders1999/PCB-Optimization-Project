@@ -72,7 +72,7 @@ def plot_field_arrow(field, cube, frac, orientation, fig = None, ax = None):
     return fig, ax
 
 
-def plot_field_arrow_3d(field, cube, fig = None, ax = None):
+def plot_field_arrow_3d(field, cube, fig = None, ax = None, scaling = True):
     """"
     input:
     """
@@ -90,15 +90,21 @@ def plot_field_arrow_3d(field, cube, fig = None, ax = None):
     ax.set_box_aspect(None, zoom=0.85)
 
     plt.margins(0.1)
-    # scale = np.max(np.abs(self.field))
-    scale = np.max(field)
+    
+    if scaling:
+        # scale = np.max(np.abs(self.field))
+        scale = np.max(field)
+    else:
+        scale = 1
     
     U_x = 0.25*field[:,:,:,0]/scale
     U_y = 0.25*field[:,:,:,1]/scale
     U_z = 0.25*field[:,:,:,2]/scale
-
-    ax.quiver(cube.X, cube.Y, cube.Z, U_x, U_y, U_z)
-
+    
+    if cube.X.shape == U_x.shape:
+        ax.quiver(cube.X, cube.Y, cube.Z, U_x, U_y, U_z)
+    else:
+        ax.quiver(cube.sides_X, cube.sides_Y, cube.sides_Z, U_x, U_y, U_z)
     return ax
 
 

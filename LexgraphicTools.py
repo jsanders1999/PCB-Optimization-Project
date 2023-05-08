@@ -32,3 +32,13 @@ def reshape_array_lex_cart(arr, N):
         i,j,k = lex_to_cart_3D(I, N)
         new[i,j,k] = el
     return new
+
+
+@njit
+def reshape_array_lex_cart_sides(arr, N):
+    new = np.zeros((6,N,N))
+    # place each element in the correct place of the 3D array
+    for I, el in enumerate(arr):
+        i,j,k = lex_to_cart_3D(I, N)
+        new[k,i,j] = el
+    return new

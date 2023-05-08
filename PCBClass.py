@@ -12,7 +12,7 @@ from hatfunctions import *
 
 
 class PCB_u:
-    def __init__(self, M, u_cart, cube):
+    def __init__(self, M, u_cart, cube, orientation, x_bnd = [-1,1], y_bnd = [-1,1]):
         """
         Initilizes the PCB object
 
@@ -26,15 +26,19 @@ class PCB_u:
 
         cube: Cube
             Cube above the PCB
-
+            
+        orientation: int
+            0 or 1 denoting if the uniform field needs to be in the z or x direction
+            y direction is not considered since it is just a rotation of the x direction
+        
         Returns
         -------
         None
         """
         self.cube = cube
         self.M = M
-        self.x_bnd = [-1,1]
-        self.y_bnd = [-1,1]
+        self.x_bnd = x_bnd
+        self.y_bnd = y_bnd
         self.h = 2/(M +1)
         self.make_grid()
 
@@ -43,9 +47,14 @@ class PCB_u:
         else:
             self.u_cart = np.ones(self.X.shape)
 
-        self.assemble_S()
+        # self.assemble_S()
         #self.assemble_f(2)
         #self.calc_mag_field()
+        
+        self.u_cart_symm = np.ones(self.X.shape)
+        self.orientation = orientation
+        # sign = 1 if orientation = 0 and sign = -1 if orientation = 1
+        self.symm_sign = 1 -2*self.orientation 
         
 
     ############################
@@ -59,8 +68,15 @@ class PCB_u:
         # make an array for x and y, +2 adds the end points for the creation and then the endpoints are sliced out
         self.x = np.linspace(*self.x_bnd, self.M + 2)[1:-1]
         self.y = np.linspace(*self.y_bnd, self.M + 2)[1:-1]
-
-        self.X, self.Y = np.meshgrid(self.x, self.y)
+        
+        # first index is row: y, second index is col: x
+        self.Y, self.X = np.meshgrid(self.y, self.x)
+        
+        self.x_symm = np.linspace(*self.x_bnd, 2*self.M + 2)[1:self.M + 1]
+        self.y_symm = np.linspace(*self.y_bnd, 2*self.M + 2)[1:self.M + 1]
+        
+        # first index is row: y, second index is col: x
+        self.Y_symm, self.X_symm = np.meshgrid(self.y_symm, self.x_symm)
         
         
     def calc_mag_field_point(self, x, y, z):
@@ -208,6 +224,126 @@ class PCB_u:
     #     self.SxT = self.Sx.T@self.f
 
 
+    def expand_u_symm(self):
+        old_shape = np.array(self.u_cart_symm.shape)
+        new_shape = old_shape*2 
+        self.u_cart_exp = np.zeros(new_shape)
+        
+        self.u_cart_exp[:old_shape[0], :old_shape[1]] = self.u_cart_symm
+        
+        # for some reason [:-1:-1,:-1] does not work thus this work around is needed
+        self.u_cart_exp[old_shape[0]:, :old_shape[1]] += (self.u_cart_symm[::-1,:])#[::-1,:]
+        
+        self.u_cart_exp[:,old_shape[1]:] = self.symm_sign*(self.u_cart_exp[:,:old_shape[1]])[:,::-1]
+
+
+    def assemble_S_symm(self):
+        """
+        Assembles the system matrix for each direction
+        """
+        # length of the T vector
+        NNN = self.cube.resolution**2*6
+        # length of the u vector
+        MM = self.M**2
+
+        # Initialize
+        self.S_symm_x = np.zeros((NNN, MM))
+        self.S_symm_y = np.zeros((NNN, MM))
+        self.S_symm_z = np.zeros((NNN, MM))
+
+        for n in tqdm(range(NNN), desc='Assembling S symmetric'):
+            # Get (x,y,z) of the current point
+            i,j,k = lex_to_cart_3D(n,self.cube.resolution)
+            
+            # k is the slow moving variable which will denote the respective side
+            x = self.cube.sides_X[k,i,j]
+            y = self.cube.sides_Y[k,i,j]
+            z = self.cube.sides_Z[k,i,j]
+
+            # shift to origin 
+            x_p = (x - self.X_symm)
+            y_p = (y - self.Y_symm)
+
+            # contribution of each individual dipole
+            B_x = self.h**2*B_dipole_x(x_p, y_p, z)
+            B_y = self.h**2*B_dipole_y(x_p, y_p, z)
+            B_z = self.h**2*B_dipole_z(x_p, y_p, z)
+
+            # set row of each system matrix as the flattend field array
+            self.S_symm_x[n,:] = B_x.flatten()
+            self.S_symm_y[n,:] = B_y.flatten()
+            self.S_symm_z[n,:] = B_z.flatten()
+
+        # make square/symmetric matrix
+        self.SS_symm_x = self.S_symm_x.T@self.S_symm_x
+        self.SS_symm_y = self.S_symm_y.T@self.S_symm_y
+        self.SS_symm_z = self.S_symm_z.T@self.S_symm_z
+        J = np.ones((NNN, NNN))
+        self.Q_symm = self.SS_symm_x + self.SS_symm_y + self.SS_symm_z
+        self.R_symm = self.S_symm_x.T@J@self.S_symm_x + self.S_symm_y.T@J@self.S_symm_y + self.S_symm_z.T@J@self.S_symm_z 
+
+
+    def calc_mag_field_symm(self):
+        """
+        Calculates the field in the cube
+        """
+        # convert u to lex ordering
+        u = self.u_cart_symm.flatten()
+
+        # calculate field
+        B_x_flat = self.S_symm_x@u
+        B_y_flat = self.S_symm_y@u
+        B_z_flat = self.S_symm_z@u
+
+        # reshape arrays to cart
+        N = self.cube.resolution
+        B_x = reshape_array_lex_cart_sides(B_x_flat, N)
+        B_y = reshape_array_lex_cart_sides(B_y_flat, N)
+        B_z = reshape_array_lex_cart_sides(B_z_flat, N)
+
+        # initialize field
+        self.field_symm = np.zeros((*self.cube.sides_X.shape,3))
+
+        # set each direction of the field
+        self.field_symm[:,:,:,0] = B_x
+        self.field_symm[:,:,:,1] = B_y
+        self.field_symm[:,:,:,2] = B_z
+        
+        # the calculated field is only from the lower left corner
+        # use symmetries to add the fields, first from the upper left corner
+        # the field at the x sides are summed with itself reversed in the y direction
+        # and the field in the y direction needs to be flipped
+        self.field_symm[0:2,:,:,0] += np.flip(self.field_symm[0:2,:,:,0],1)
+        self.field_symm[0:2,:,:,1] += -np.flip(self.field_symm[0:2,:,:,1],1)
+        self.field_symm[0:2,:,:,2] += np.flip(self.field_symm[0:2,:,:,2],1)
+        
+        # the field at the y sides are summed with the field of the opposite y side
+        self.field_symm[2:4,:,:,0] += np.flip(self.field_symm[2:4,:,:,0],0)
+        self.field_symm[2:4,:,:,1] += -np.flip(self.field_symm[2:4,:,:,1],0)
+        self.field_symm[2:4,:,:,2] += np.flip(self.field_symm[2:4,:,:,2],0)
+        
+        # the field at the z sides are summed with itself reversed in the y direction
+        self.field_symm[4:6,:,:,0] += np.flip(self.field_symm[4:6,:,:,0],1)
+        self.field_symm[4:6,:,:,1] += -np.flip(self.field_symm[4:6,:,:,1],1)
+        self.field_symm[4:6,:,:,2] += np.flip(self.field_symm[4:6,:,:,2],1)
+        
+        # use the symmetries to add the fields from the right half
+        # for each addition the symm_sign is used
+        # the field at the x sides are summed with the field of the opposite x side
+        # and the field in the x direction needs to be flipped
+        self.field_symm[0:2,:,:,0] += -self.symm_sign*np.flip(self.field_symm[0:2,:,:,0],0)
+        self.field_symm[0:2,:,:,1:3] += self.symm_sign*np.flip(self.field_symm[0:2,:,:,1:3],0)
+        
+        # the field at the y sides are summed with itself reversed in the x direction
+        # the second index is the x index 
+        self.field_symm[2:4,:,:,0] += -self.symm_sign*self.field_symm[2:4,::-1,:,0]
+        self.field_symm[2:4,:,:,1:3] += self.symm_sign*self.field_symm[2:4,::-1,:,1:3]
+        
+        # the field at the z sides are summed with itself reversed in the x direction
+        self.field_symm[4:6,:,:,0] += -self.symm_sign*self.field_symm[4:6,:,::-1,0]
+        self.field_symm[4:6,:,:,1:3] += self.symm_sign*self.field_symm[4:6,:,::-1,1:3]
+        
+        
     ############################
     ###   Analysis Methods   ###
     ############################
