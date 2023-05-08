@@ -27,63 +27,68 @@ def GradUniformity(u, Q, R, N):
     uQu = u.T@Qu
     return (N**3*Qu-(uQu/uRu)*Ru)/uRu
 
-@njit
+
 def cartesian_to_sphere(u):
     """Transforms cartesian vector u to spherical vector phi
     first entry of phi is the length of u, rest is angle coordinates
     """
-    phi = np.zeros(len(u))
-    phi[0] = np.linalg.norm(u)
-    for i in range(1,len(u)-1):
+    phi = np.zeros(len(u)-1)
+    r = np.linalg.norm(u)
+    for i in range(len(u)-1):
         phi[i] = np.arccos(u[i]/(np.sqrt(sum(u[i]**2 for i in range(i,len(u))))))
     if u[-1] >=0:
         phi[-1] = np.arccos(u[-1]/np.sqrt(u[-1]**2+u[-2]**2))
     else:
         phi[-1] = 2*np.pi-np.arccos(u[-1]/np.sqrt(u[-1]**2+u[-2]**2))
-    return phi
+    return r,phi
 
-@njit
-def sphere_to_cartesian(phi):
+
+def sphere_to_cartesian(r,phi):
     """Transforms spherical vector phi to cartesian vector u"""
-    u = np.zeros(len(phi))
-    for i in range(0,len(phi)-1):
-        u[i] = phi[0]
-        for j in range(1,i):
+    u = np.zeros(len(phi)+1)
+    for i in range(0,len(phi)):
+        u[i] = r
+        for j in range(0,i):
             u[i]*= np.sin(phi[j])
-        u[i] *= np.cos(phi[i+1])
-    u[-1] = phi[0]
-    for j in range(1,len(phi)):
+        u[i] *= np.cos(phi[i])
+    u[-1] = r
+    for j in range(0,len(phi)):
         u[-1]*= np.sin(phi[j])
     return u
 
-@njit
-def GradUniformity_spherical(phi, Q, R, N):
-    """ The gradient of Uniformity() for spherical coordinates"""
-    u = sphere_to_cartesian(phi)
-    grad = GradUniformity(u, Q, R, N)
-    PHI = np.zeros((len(phi),len(u)))
-    for i in range(1,len(u)):
-        PHI[0,i-1] = 1
-        for j in range(1,i):
-            PHI[0,i-1]*= np.sin(phi[j])
-        PHI[0,i-1]*=np.cos(phi[i])
-    PHI[0,-1] = 1
-    for j in range(1,len(phi)):
-        PHI[0,-1]*= np.sin(phi[j])
-    for k in range(1,len(phi-1)): ##indices not correct
-        PHI[k,k-1] = phi[0]  ##indices not correct
-        for j in range(1,k):  ##indices not correct
-            PHI[k,k-1]*= np.sin(phi[j])  ##indices not correct
-        PHI[0,i-1]*=np.cos(phi[i])      ##indices not correct
-        for i in range(k,len(u)):
-            PHI[k,i-1] = phi[0]
-            for j in range(1,i):
-                if j != k:
-                    PHI[k,i-1]*= np.sin(phi[j])
-            PHI[0,i-1]*=np.cos(phi[i])
-    ### Finish with correct indices etc.
-    return PHI@grad
 
+def GradUniformity_spherical(r,phi, Q, R, N):
+    """ The gradient of Uniformity() for spherical coordinates"""
+    u = sphere_to_cartesian(r,phi)
+    grad = GradUniformity(u, Q, R, N)
+    grad_phi = np.zeros(len(phi))
+    # for i in range(len(u)):
+    #     dxidr = 1
+    #     for j in range(i):
+    #         dxidr*=np.sin(phi[j])
+    #     if i != len(u)-1:
+    #         dxidr*=np.cos(phi[i])
+    #     else:
+    #         dxidr*=np.sin(phi[i])
+    #     grad_phi[0] += dxidr*grad[i]
+    for k in range(len(grad_phi)):
+        dxkdpk = r*-np.sin(phi[k])
+        for j in range(k):
+            dxkdpk*=np.sin(phi[j])
+        grad_phi[k] += dxkdpk*grad[k]
+        for i in range(k+1,len(u)-1):
+            dxidpk = r
+            for j in range(i):
+                if j !=k:
+                    dxidpk*=np.sin(phi[j])
+                else:
+                    dxidpk*=np.cos(phi[j])
+            if i != len(u)-1:
+                dxidpk*=np.cos(phi[i])
+            else:
+                dxidpk*=np.sin(phi[i])
+            grad_phi[k] += dxidpk*grad[i]
+    return grad_phi
 
 def UniformityDirected():
     """ The function that is minimized. Is a measure for the uniformity of the magnetic field in the target volume for a specific direction"""
@@ -123,6 +128,11 @@ class optimize_k:
 
     def opti_grad(self, u):
         return GradUniformity(u, self.Q, self.R, self.pcb.cube.resolution)
+    
+    
+    def opti_grad_sphere(self,r,phi):
+        return GradUniformity_spherical(r,phi, self.Q, self.R, self.pcb.cube.resolution)
+
              
     
     def line_search_normed(self,u_start,n_steps,line_step,eps,u_norm):
@@ -171,7 +181,7 @@ class optimize_k:
                 t_optimal = sp.optimize.minimize(func, np.random.normal()).x[0]
                 print(t_optimal)
                 #t_optimal = -1/2*(d.T@self.Q@d * u_old.T@self.R@u_old - d.T@self.R@d * u_old.T@self.Q@u_old)/(d.T@self.R@d * u_old.T@self.Q@d - d.T@self.Q@d * u_old.T@self.R@d)
-                step = alpha*step - t_optimal*d
+                step = - t_optimal*d #+alpha*step 
                 u_new = u_old + step
             else:
                 print(count, self.opti_func(u_old), "No minimium found in line search")            
@@ -215,3 +225,27 @@ class optimize_k:
             if self.verbose:
                 print(count, " : ", Vs[-1])
         return u, Vs
+    
+    def line_search_sphere(self, u_start, n_steps, u_norm, alpha = 0.5):
+        r,phi_old = cartesian_to_sphere(u_start)
+        Vs = [self.opti_func(u_start)]
+        improv = self.opti_func(u_start)
+        count = 0
+        while count < n_steps:# and improv>1:
+            grad_phi = self.opti_grad_sphere(r,phi_old)
+            # if True: #d.T@self.R@d * u_old.T@self.Q@d > d.T@self.Q@d * u_old.T@self.R@d:
+            func = lambda t: self.opti_func(sphere_to_cartesian(r,phi_old - t*grad_phi))
+            t_optimal = sp.optimize.minimize(func, np.random.normal()).x[0]
+            #t_optimal = -1/2*(d.T@self.Q@d * u_old.T@self.R@u_old - d.T@self.R@d * u_old.T@self.Q@u_old)/(d.T@self.R@d * u_old.T@self.Q@d - d.T@self.Q@d * u_old.T@self.R@d)
+            step = -t_optimal*grad_phi #+alpha*step
+            phi_new = phi_old + step
+            # else:
+            #     print(count, self.opti_func(u_old), "No minimium found in line search")            
+            #     u_new = u_old + 1e-5*np.linalg.norm(u_old)*np.random.normal(size = u_old.size) #random perturbation
+            Vs.append(self.opti_func(sphere_to_cartesian(r,phi_new)))
+            improv = Vs[-2] - Vs[-1]
+            phi_old = phi_new
+            count +=1
+            if self.verbose:
+                print(count, " : ", Vs[-1])
+        return sphere_to_cartesian(r,phi_old), Vs

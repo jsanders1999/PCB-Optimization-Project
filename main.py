@@ -15,7 +15,7 @@ from PCBClass import PCB_u
 from OptimizeClass import optimize_k
 
 N = 10
-M = 500
+M = 10
 
 cube = Cube(N)
 pcb = PCB_u(M, None, cube)
@@ -43,8 +43,10 @@ u_start = (uNorm/M**2)*u_start/np.linalg.norm(u_start)
 print(np.linalg.norm(u_start), uNorm/M**2)
 
 opti_instance = optimize_k(pcb)
-#u , Vu = opti_instance.gradient_descent_normed(u_start, 5000, 3e10, uNorm)
-u , Vu = opti_instance.line_search_line_min(u_start, 50, uNorm/M**2)
+u , Vu = opti_instance.gradient_descent_normed(u_start, 5000, 3e10, uNorm)
+# u , Vu = opti_instance.line_search_line_min(u_start, 50, uNorm/M**2)
+# u , Vu = opti_instance.line_search_sphere(u_start, 50, uNorm/M**2)
+
 
 pcb.u_cart = np.reshape(u, (M,M), order = "C")
 
