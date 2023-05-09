@@ -25,7 +25,7 @@ def GradUniformity(u, Q, R, N):
     Qu = Q@u
     uRu = u.T@Ru
     uQu = u.T@Qu
-    return (N**3*Qu-(uQu/uRu)*Ru)/uRu
+    return N**3*(Qu-(uQu/uRu)*Ru)/uRu
 
 
 def cartesian_to_sphere(u):
