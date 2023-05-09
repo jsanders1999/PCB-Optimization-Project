@@ -2,6 +2,7 @@
 import numpy as np
 import scipy as sp
 import scipy.integrate as si
+import scipy.linalg as li
 import matplotlib.pyplot as plt
 from tqdm import tqdm
 from numba import njit
@@ -14,11 +15,11 @@ from LexgraphicTools import *
 from PCBClass import PCB_u
 from OptimizeClass import optimize_k
 
-N = 10
+N = 17
 M = 10
 
 cube = Cube(N)
-pcb = PCB_u(M, None, cube)
+pcb = PCB_u(M, None, cube, 0)
 
 #ax = pcb.plot_field_arrow_3d()
  
@@ -42,9 +43,27 @@ u_start = (uNorm/M**2)*np.ones(M**2)
 u_start = (uNorm/M**2)*u_start/np.linalg.norm(u_start)
 print(np.linalg.norm(u_start), uNorm/M**2)
 
+pcb.assemble_S()
+Q = pcb.SS_x + pcb.SS_y + pcb.SS_z
+J = np.ones((pcb.cube.resolution**3,pcb.cube.resolution**3))
+R = pcb.S_z.T@J@pcb.S_z
+
+#print(li.null_space(Q))
+nSpace = li.null_space(Q)
+print(nSpace.shape)
+#u = u_start
+for k in range(nSpace.shape[1]):
+    print(k)
+    plt.imshow(np.reshape(nSpace[:,k], (M,M), order = "C"))
+    plt.show()
+    
 opti_instance = optimize_k(pcb)
-u , Vu = opti_instance.gradient_descent_normed(u_start, 5000, 3e10, uNorm)
-# u , Vu = opti_instance.line_search_line_min(u_start, 50, uNorm/M**2)
+#u , Vu = opti_instance.gradient_descent_normed(u_start, 50000, 3e10, uNorm)
+#u , Vu = opti_instance.line_search_line_min(u_start, 1500, uNorm/M**2)
+u , Vu = opti_instance.scipy_minimum(u_start, uNorm/M**2) #Only works up to M=10
+print(Vu)
+#plt.plot(Vu)
+#plt.show()
 # u , Vu = opti_instance.line_search_sphere(u_start, 50, uNorm/M**2)
 
 

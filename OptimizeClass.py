@@ -106,7 +106,8 @@ def gradient_descent_normed(u_start, Q, R, N,  n_steps, stepsize, u_norm):
             u += -grad*(stepsize/(np.sqrt(np.sqrt(step))+5))
             u = u/np.linalg.norm(u)*u_norm
             if True:
-                print("itteration: ", step, "Uniformity:", Uniformity(u, Q, R, N))
+                if step%50 ==0 or step <50:
+                    print("itteration: ", step, "Uniformity:", Uniformity(u, Q, R, N))
         return u, Uniformity(u, Q, R, N)
 
 class optimize_k:
@@ -115,7 +116,7 @@ class optimize_k:
         self.verbose = verbose
         self.Q = pcb.SS_x + pcb.SS_y + pcb.SS_z
         self.J = np.ones((pcb.cube.resolution**3,pcb.cube.resolution**3))
-        self.R = pcb.S_x.T@self.J@pcb.S_x + pcb.S_y.T@self.J@pcb.S_y + pcb.S_z.T@self.J@pcb.S_z
+        self.R = pcb.S_z.T@self.J@pcb.S_z #+ pcb.S_x.T@self.J@pcb.S_x + pcb.S_y.T@self.J@pcb.S_y + 
         #self.L = 1/pcb.M*(np.diag(np.ones(pcb.M)*1/3) + np.diag(np.ones(pcb.M-1)*-1/12,k=1) +np.diag(np.ones(pcb.M-1)*-1/12,k=-1))
         #self.A = np.kron(np.eye(pcb.M),self.L)+np.kron(self.L,np.eye(pcb.M))
         if self.verbose:
@@ -172,32 +173,39 @@ class optimize_k:
         Vs = [self.opti_func(u_old)]
         improv = self.opti_func(u_old)
         count = 0
+        print(count, " : ", Vs[-1])
         while count < n_steps:# and improv>1:
             grad = self.opti_grad(u_old)
             u_normed = u_old/np.linalg.norm(u_old)
             d = grad -  (u_normed.T @ grad)*u_normed  #project the gradient onto the tangent plane of the contraint sphere
             if True: #d.T@self.R@d * u_old.T@self.Q@d > d.T@self.Q@d * u_old.T@self.R@d:
                 func = lambda t: self.opti_func(u_old - t*d)
-                t_optimal = sp.optimize.minimize(func, np.random.normal()).x[0]
+                t_optimal = sp.optimize.minimize(func, 5e4*np.random.normal()).x[0]
                 print(t_optimal)
                 #t_optimal = -1/2*(d.T@self.Q@d * u_old.T@self.R@u_old - d.T@self.R@d * u_old.T@self.Q@u_old)/(d.T@self.R@d * u_old.T@self.Q@d - d.T@self.Q@d * u_old.T@self.R@d)
                 step = - t_optimal*d #+alpha*step 
                 u_new = u_old + step
+                #print(self.opti_func(u_old), self.opti_func(u_new))
+                #print(func(0), func(t_optimal))
             else:
                 print(count, self.opti_func(u_old), "No minimium found in line search")            
                 u_new = u_old + 1e-5*np.linalg.norm(u_old)*np.random.normal(size = u_old.size) #random perturbation
-            u_new = ((u_new)/np.linalg.norm(u_old))*u_new
+            u_new = u_norm*((u_new)/np.linalg.norm(u_new))
             improv = Vs[-1] - self.opti_func(u_new)
-            #if improv>0:
-            #    u_old = u_new
-            #else:
-            #    print("no improvement!")
-            #    u_old +=  1e-5*np.linalg.norm(u_old)*np.random.normal(size = u_old.size)
+            u_old = u_new
             Vs.append(self.opti_func(u_old))
             count +=1
             if self.verbose:
                 print(count, " : ", Vs[-1])
         return u_old, Vs
+    
+    def scipy_minimum(self, u_start, u_norm):
+        optres = sp.optimize.minimize(self.opti_func, u_start, jac = self.opti_grad )
+        print(optres)
+        u = optres.x/np.linalg.norm(optres.x)*u_norm
+        V = self.opti_func(optres.x)
+        return u, V
+
 
     def line_search_line_perturb(self, u_start, n_steps, u_norm):
         u = u_start
