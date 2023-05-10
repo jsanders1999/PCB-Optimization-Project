@@ -15,8 +15,8 @@ from LexgraphicTools import *
 from PCBClass import PCB_u
 from OptimizeClass import optimize_k
 
-N = 17
-M = 10
+N = 20
+M = 15
 
 cube = Cube(N)
 pcb = PCB_u(M, None, cube, 0)
@@ -58,16 +58,17 @@ for k in range(nSpace.shape[1]):
     plt.show()
     
 opti_instance = optimize_k(pcb)
-#u , Vu = opti_instance.gradient_descent_normed(u_start, 50000, 3e10, uNorm)
-#u , Vu = opti_instance.line_search_line_min(u_start, 1500, uNorm/M**2)
-u , Vu = opti_instance.scipy_minimum(u_start, uNorm/M**2) #Only works up to M=10
-print(Vu)
+u1 , Vu1 = opti_instance.gradient_descent_normed(u_start, 50000, 3e10, uNorm)
+u2 , Vu2 = opti_instance.line_search_line_min(u_start, 1500, uNorm/M**2)
+u3 , Vu3 = opti_instance.scipy_minimum(u_start, uNorm/M**2) #Only works up to M=10
+# print(Vu)
 #plt.plot(Vu)
 #plt.show()
-# u , Vu = opti_instance.line_search_sphere(u_start, 50, uNorm/M**2)
+u4 , Vu4 = opti_instance.line_search_sphere(u_start, 50, uNorm/M**2)
 
-
-pcb.u_cart = np.reshape(u, (M,M), order = "C")
+print(Vu1,Vu2[-1],Vu3,Vu4[-1])
+# print(type(Vu3))
+pcb.u_cart = np.reshape(u4, (M,M), order = "C")
 
 #pcb.plot_curl_potential()
 #pcb.plot_curl_potential( contour_lvl = 10)
