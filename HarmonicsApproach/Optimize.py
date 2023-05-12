@@ -17,6 +17,16 @@ def GradUniformity(u, Q, R, N):
     uQu = u.T@Qu
     return 2*N**3*(Qu-(uQu/uRu)*Ru)/uRu
 
+@njit
+def HessUniformity(u, Q, R, N, M):
+    """ The gradient of Uniformity() w.r.t u"""
+    Ru = R@u
+    Qu = Q@u
+    uRu = u.T@Ru
+    uQu = u.T@Qu
+    I = np.eye(M, M)
+    return 2*N**3*(Q/uRu - uQu/uRu^2*R - 2/uRu^2 * Qu@Ru*  I + 4*uQu/uRu^3*Qu@Ru*I - 2*Qu@Qu/uRu^2* I )
+
 
 def line_search_line_min(Q, R, res, u_norm, u_start, n_steps, alpha = 0.5):
     N = res

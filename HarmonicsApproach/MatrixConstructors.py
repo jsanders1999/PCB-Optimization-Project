@@ -2,6 +2,8 @@ import numpy as np
 import scipy.integrate as si
 from numba import njit, jit
 from tqdm import tqdm
+import matplotlib.pyplot as plt
+#from joblib import Parallel, delayed
 
 from Streamfunctions import *
 
@@ -31,6 +33,12 @@ def psiz_conv_delx_harm(x, y, z, n, m): #By
 def psixy_conv_delxy_harm(x, y, z, n, m): #Bz
     return si.dblquad(psixy_conv_delxy_harm_integrand, -1, 1, -1, 1, args = (x, y, z, n, m))[0]
 #psixy_conv_delxy_harm = np.vectorize(psixy_conv_delxy_harm)
+
+def Test_Conv():
+    print(psiz_conv_dely_harm(0.5, 0.5, 0.5, 0, 0,))
+    print(psiz_conv_delx_harm(1.0, 1.5, 2.5, 0, 0,))
+    print(psixy_conv_delxy_harm(0.5, 0.5, 0.5, 0, 0))
+    return
 
 
 #### The system matrices (steam functions coeffficients |--> Magnetic field at grid points in target volume ) ####
@@ -88,6 +96,64 @@ def AssembleSz(N, M, resolution, Omega = [-1.0, 1.0, -1.0, 1.0], V = [-0.5, 0.5,
             Sz[i,j] = psixy_conv_delxy_harm(X[i], Y[i], Z[i], n, m)
     return Sz
 
+#### The system matrices (steam functions coeffficients |--> Magnetic field at grid points in target volume ) ####
+def AssembleSxSymm(N, M, resolution, Omega = [-1.0, 1.0, -1.0, 1.0], V = [-0.5, 0.5,  -0.5, 0.5,  0.1, 1.1]):
+    NM = N*M
+    x = np.linspace(V[0], V[1], resolution)[:int(resolution/2)] #Discretize the target volume into a grid
+    y = np.linspace(V[2], V[3], resolution)[:int(resolution/2)]
+    z = np.linspace(V[4], V[5], resolution)
+    X, Y, Z = np.meshgrid(x, y, z)
+    X = X.reshape((int(resolution**3/4)), order = "C") #order the volume lexographically
+    Y = Y.reshape((int(resolution**3/4)), order = "C") #order the volume lexographically
+    Z = Z.reshape((int(resolution**3/4)), order = "C") #order the volume lexographically
+
+    Sx = np.zeros((int(resolution**3/4), NM))
+    for i in tqdm(range(int(resolution**3/4)), "Assembling Sx"):
+        for j in range(NM):
+            m = j//N
+            n = j%N
+            Sx[i,j] = psiz_conv_delx_harm(X[i], Y[i], Z[i], n, m)
+    Sx_full = np.concatenate([Sx, -Sx, Sx, -Sx], axis = 0)
+    return Sx_full
+
+def AssembleSySymm(N, M, resolution, Omega = [-1.0, 1.0, -1.0, 1.0], V = [-0.5, 0.5,  -0.5, 0.5,  0.1, 1.1]):
+    NM = N*M
+    x = np.linspace(V[0], V[1], resolution)[:int(resolution/2)] #Discretize the target volume into a grid
+    y = np.linspace(V[2], V[3], resolution)[:int(resolution/2)]
+    z = np.linspace(V[4], V[5], resolution)
+    X, Y, Z = np.meshgrid(x, y, z)
+    X = X.reshape((int(resolution**3/4)), order = "C") #order the volume lexographically
+    Y = Y.reshape((int(resolution**3/4)), order = "C") #order the volume lexographically
+    Z = Z.reshape((int(resolution**3/4)), order = "C") #order the volume lexographically
+
+    Sy = np.zeros((int(resolution**3/4), NM))
+    for i in tqdm(range(int(resolution**3/4)), "Assembling Sy"):
+        for j in range(NM):
+            m = j//N
+            n = j%N
+            Sy[i,j] = psiz_conv_dely_harm(X[i], Y[i], Z[i], n, m)
+    Sy_full = np.concatenate([Sy, Sy, -Sy, -Sy], axis = 0)
+    return Sy_full
+
+def AssembleSzSymm(N, M, resolution, Omega = [-1.0, 1.0, -1.0, 1.0], V = [-0.5, 0.5,  -0.5, 0.5,  0.1, 1.1]):
+    NM = N*M
+    x = np.linspace(V[0], V[1], resolution)[:int(resolution/2)] #Discretize the target volume into a grid
+    y = np.linspace(V[2], V[3], resolution)[:int(resolution/2)]
+    z = np.linspace(V[4], V[5], resolution)
+    X, Y, Z = np.meshgrid(x, y, z)
+    X = X.reshape((int(resolution**3/4)), order = "C") #order the volume lexographically
+    Y = Y.reshape((int(resolution**3/4)), order = "C") #order the volume lexographically
+    Z = Z.reshape((int(resolution**3/4)), order = "C") #order the volume lexographically
+
+    Sz = np.zeros((int(resolution**3/4), NM))
+    for i in tqdm(range(int(resolution**3/4)), "Assembling Sz"):
+        for j in range(NM):
+            m = j//N
+            n = j%N
+            Sz[i,j] = psixy_conv_delxy_harm(X[i], Y[i], Z[i], n, m)
+    Sz_full = np.concatenate([Sz, Sz, Sz, Sz], axis = 0)
+    return Sz_full
+
 #### The system matrices for the outer surface of the target volume (steam functions coeffficients |--> Magnetic field at grid points in target volume ) ####
 
 def AssembleSxSurf(N, M, resolution, Omega = [-1.0, 1.0, -1.0, 1.0], V = [-0.5, 0.5,  -0.5, 0.5,  0.1, 1.1]):
@@ -113,9 +179,9 @@ def AssembleSxSurf(N, M, resolution, Omega = [-1.0, 1.0, -1.0, 1.0], V = [-0.5, 
     Sx = np.zeros((resolution**3 -(resolution-2)**3, NM))
     for i in tqdm(range(len(X_new)), "Assembling Sx"):
         for j in range(NM):
-            n = j//N
-            m = j%N
-            Sx[i,j] = psiz_conv_dely_harm(X_new[i], Y_new[i], Z_new[i], n, m)
+            m = j//N
+            n = j%N
+            Sx[i,j] = psiz_conv_delx_harm(X_new[i], Y_new[i], Z_new[i], n, m)
     return Sx
 
 def AssembleSySurf(N, M, resolution, Omega = [-1.0, 1.0, -1.0, 1.0], V = [-0.5, 0.5,  -0.5, 0.5,  0.1, 1.1]):
@@ -138,12 +204,17 @@ def AssembleSySurf(N, M, resolution, Omega = [-1.0, 1.0, -1.0, 1.0], V = [-0.5, 
     Y_new = np.delete(Y, deletelist)
     Z_new = np.delete(Z, deletelist)
 
+    #fig = plt.figure()
+    #ax = fig.add_subplot(projection='3d')
+    #ax.scatter(X_new, Y_new, Z_new)
+    #plt.show()
+
     Sy = np.zeros((resolution**3 -(resolution-2)**3, NM))
     for i in tqdm(range(len(X_new)), "Assembling Sy"):
         for j in range(NM):
             m = j//N
             n = j%N
-            Sy[i,j] = psiz_conv_delx_harm(X_new[i], Y_new[i], Z_new[i], n, m)
+            Sy[i,j] = psiz_conv_dely_harm(X_new[i], Y_new[i], Z_new[i], n, m)
     return Sy
 
 def AssembleSzSurf(N, M, resolution, Omega = [-1.0, 1.0, -1.0, 1.0], V = [-0.5, 0.5,  -0.5, 0.5,  0.1, 1.1]):
@@ -182,16 +253,16 @@ def AssembleSxSurfZSym(N, M, resolution, Omega = [-1.0, 1.0, -1.0, 1.0], V = [-0
     x = np.linspace(V[0], V[1], resolution) #Discretize the target volume into a grid
     y = np.linspace(V[2], V[3], resolution)
     z = np.linspace(V[4], V[5], resolution)
-    X, Y, Z = np.meshgrid(x, y, z)
+    Z, Y, X = np.meshgrid(z, y, x)
     X = X.reshape((resolution**3), order = "C") #order the volume lexographically
     Y = Y.reshape((resolution**3), order = "C") #order the volume lexographically
     Z = Z.reshape((resolution**3), order = "C") #order the volume lexographically
     
     #remove the interior elements of the target volume
     deletelist = []
-    for i in range(resolution):
+    for k in range(resolution):
         for j in range(resolution):
-            for k in range(resolution):
+            for i in range(resolution):
                 if (k ==0 or k==resolution-1) and j<resolution/2 and i< resolution/2:
                     deletelist += []
                 elif j==0 and i<resolution/2:
@@ -199,7 +270,7 @@ def AssembleSxSurfZSym(N, M, resolution, Omega = [-1.0, 1.0, -1.0, 1.0], V = [-0
                 elif i==0 and j<resolution/2:
                     deletelist += []
                 else:
-                    deletelist += [resolution**2*k+resolution*j+i]
+                    deletelist += [resolution**2*j+resolution*k+i]
     X_new = np.delete(X, deletelist)
     Y_new = np.delete(Y, deletelist)
     Z_new = np.delete(Z, deletelist)
@@ -209,7 +280,7 @@ def AssembleSxSurfZSym(N, M, resolution, Omega = [-1.0, 1.0, -1.0, 1.0], V = [-0
         for j in range(NM):
             m = j//N
             n = j%N
-            Sx[i,j] = psiz_conv_dely_harm(X_new[i], Y_new[i], Z_new[i], n, m)
+            Sx[i,j] = psiz_conv_delx_harm(X_new[i], Y_new[i], Z_new[i], n, m)
 
     Sx_full = np.concatenate([Sx,-Sx, Sx, -Sx], axis = 0) #np.zeros((resolution**3-(resolution-2)**3, NM))
     #The ordering of the grid points in sx_full does not matter for the optimization!
@@ -228,16 +299,16 @@ def AssembleSySurfZSym(N, M, resolution, Omega = [-1.0, 1.0, -1.0, 1.0], V = [-0
     x = np.linspace(V[0], V[1], resolution) #Discretize the target volume into a grid
     y = np.linspace(V[2], V[3], resolution)
     z = np.linspace(V[4], V[5], resolution)
-    X, Y, Z = np.meshgrid(x, y, z)
+    Z, Y, X = np.meshgrid(z, y, x)
     X = X.reshape((resolution**3), order = "C") #order the volume lexographically
     Y = Y.reshape((resolution**3), order = "C") #order the volume lexographically
     Z = Z.reshape((resolution**3), order = "C") #order the volume lexographically
     
     #remove the interior elements of the target volume
     deletelist = []
-    for i in range(resolution):
+    for k in range(resolution):
         for j in range(resolution):
-            for k in range(resolution):
+            for i in range(resolution):
                 if (k ==0 or k==resolution-1) and j<resolution/2 and i< resolution/2:
                     deletelist += []
                 elif j==0 and i<resolution/2:
@@ -245,17 +316,22 @@ def AssembleSySurfZSym(N, M, resolution, Omega = [-1.0, 1.0, -1.0, 1.0], V = [-0
                 elif i==0 and j<resolution/2:
                     deletelist += []
                 else:
-                    deletelist += [resolution**2*k+resolution*j+i]
+                    deletelist += [resolution**2*j+resolution*k+i]
     X_new = np.delete(X, deletelist)
     Y_new = np.delete(Y, deletelist)
     Z_new = np.delete(Z, deletelist)
+
+    #fig = plt.figure()
+    #ax = fig.add_subplot(projection='3d')
+    #ax.scatter(X_new, Y_new, Z_new)
+    #plt.show()
 
     Sy = np.zeros((len(X_new), NM))
     for i in tqdm(range(len(X_new)), "Assembling Sy"):
         for j in range(NM):
             m = j//N
             n = j%N
-            Sy[i,j] = psiz_conv_delx_harm(X_new[i], Y_new[i], Z_new[i], n, m)
+            Sy[i,j] = psiz_conv_dely_harm(X_new[i], Y_new[i], Z_new[i], n, m)
 
     Sy_full = np.concatenate([Sy,Sy, -Sy, -Sy], axis = 0)#Sy_full = np.zeros((resolution**3-(resolution-2)**3, NM))
     #The ordering of the grid points in sx_full does not matter for the optimization!
@@ -274,7 +350,7 @@ def AssembleSzSurfZSym(N, M, resolution, Omega = [-1.0, 1.0, -1.0, 1.0], V = [-0
     x = np.linspace(V[0], V[1], resolution) #Discretize the target volume into a grid
     y = np.linspace(V[2], V[3], resolution)
     z = np.linspace(V[4], V[5], resolution)
-    X, Y, Z = np.meshgrid(x, y, z)
+    Z, Y, X = np.meshgrid(z, y, x)
     X = X.reshape((resolution**3), order = "C") #order the volume lexographically
     Y = Y.reshape((resolution**3), order = "C") #order the volume lexographically
     Z = Z.reshape((resolution**3), order = "C") #order the volume lexographically
@@ -291,7 +367,7 @@ def AssembleSzSurfZSym(N, M, resolution, Omega = [-1.0, 1.0, -1.0, 1.0], V = [-0
                 elif i==0 and j<resolution/2:
                     deletelist += []
                 else:
-                    deletelist += [resolution**2*k+resolution*j+i]
+                    deletelist += [resolution**2*j+resolution*k+i]
     X_new = np.delete(X, deletelist)
     Y_new = np.delete(Y, deletelist)
     Z_new = np.delete(Z, deletelist)
@@ -313,8 +389,10 @@ def AssembleSzSurfZSym(N, M, resolution, Omega = [-1.0, 1.0, -1.0, 1.0], V = [-0
     return Sz_full
 
 if __name__=="__main__":
-    AssembleSxSurf(2, 2, 4, Omega = [-1.0, 1.0, -1.0, 1.0], V = [-0.5, 0.5,  -0.5, 0.5,  0.1, 1.1])
-    AssembleSxSurfZSym(2, 2, 4, Omega = [-1.0, 1.0, -1.0, 1.0], V = [-0.5, 0.5,  -0.5, 0.5,  0.1, 1.1])
+    #AssembleSySurf(2, 2, 4, Omega = [-1.0, 1.0, -1.0, 1.0], V = [-0.5, 0.5,  -0.5, 0.5,  0.1, 1.1])
+    Sy1 = AssembleSx(2, 2, 6, Omega = [-1.0, 1.0, -1.0, 1.0], V = [-0.5, 0.5,  -0.5, 0.5,  0.1, 1.1])
+    Sy2 = AssembleSxSymm(2, 2, 6, Omega = [-1.0, 1.0, -1.0, 1.0], V = [-0.5, 0.5,  -0.5, 0.5,  0.1, 1.1])
+    print(np.linalg.norm(Sy1.T@Sy1-Sy2.T@Sy2))
 
 
 
