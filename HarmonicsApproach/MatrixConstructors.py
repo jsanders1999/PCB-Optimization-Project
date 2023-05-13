@@ -1,3 +1,6 @@
+#### LEGACY CODE, ONLY USE IF THE PARRALEL ONE IS NOT WORKING ###
+
+
 import numpy as np
 import scipy.integrate as si
 from numba import njit, jit
