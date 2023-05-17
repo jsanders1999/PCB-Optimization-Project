@@ -201,7 +201,7 @@ class optimize_k:
     
     def scipy_minimum(self, u_start, u_norm):
         optres = sp.optimize.minimize(self.opti_func, u_start, jac = self.opti_grad )
-        print(optres)
+        # print(optres)
         u = optres.x/np.linalg.norm(optres.x)*u_norm
         V = self.opti_func(optres.x)
         return u, V

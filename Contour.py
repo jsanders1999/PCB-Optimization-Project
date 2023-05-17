@@ -2,7 +2,8 @@
 import numpy as np 
 import matplotlib.pyplot as plt
 from numba import njit
-
+from contourpy import contour_generator
+from tqdm import tqdm
 
 @njit
 def norm_impl(x):
@@ -79,7 +80,7 @@ class Contour:
         if (not fig) and (not ax):
             fig, ax = plt.subplots(1,1)
         
-        if self.polarity == 1:
+        if self.polarity == -1:
             style = 'b-' 
         else:
             style = 'r-'
@@ -89,6 +90,9 @@ class Contour:
             y_p = self.y_points[i:i+2]
 
             ax.plot(x_p, y_p, style)
+        
+        # you can use an arrow to check if all the contours are plotted clockwise
+        # ax.arrow(x_p[0], y_p[0], x_p[1] - x_p[0], y_p[1] - y_p[0], shape='full', lw=0, length_includes_head=True, head_width=.05)
         
         return fig, ax
 
@@ -111,3 +115,47 @@ class PCB_c:
         for c in self.contours:
             # loop over points is done in separate function which is jitted
             calc_mag_field_c_cube(c.x_i, c.x_f, c.polarity, self.cube.X, self.cube.Y, self.cube.Z, self.field)
+
+
+    def plot_contours(self, fig = None, ax = None):
+        if (not fig) and (not ax):
+            fig, ax = plt.subplots(1,1)
+        for c in self.contours:
+            c.plot_contour(fig, ax)
+        return fig, ax
+ 
+   
+ 
+def density_to_loops(U, num_levels, cube, x, y):
+    cont_gen = contour_generator(z=U, x = x, y = y)
+    u_min = np.min(U)
+    u_max = np.max(U)
+    
+    levels = np.linspace(u_min, u_max, num_levels+2)[1:-1]
+    
+    # contours are drawn clockwise 
+    polarity = -1
+    
+    contours = []
+    
+    for lvl in tqdm(levels, desc="looping over levels"):
+        if lvl < 0:
+            polarity = 1
+            
+        lines = cont_gen.lines(lvl)
+        
+        for line in lines:
+            # we need to check if the contours are drawn clockwise or counterclockwise
+            # https://stackoverflow.com/questions/1165647/how-to-determine-if-a-list-of-polygon-points-are-in-clockwise-order
+            x = line[:,0]
+            y = line[:,1]
+            
+            clockwise = np.sum((x[1:] - x[:-1])*(y[1:] + y[:-1])) 
+            
+            if clockwise < 0:
+                line = line[::-1,:]
+                
+            c = Contour(line.T, polarity)
+            contours.append(c)
+        
+    return PCB_c(contours, cube)

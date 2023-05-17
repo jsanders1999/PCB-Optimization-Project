@@ -48,8 +48,8 @@ class PCB_u:
             self.u_cart = np.ones(self.X.shape)
 
         # self.assemble_S()
-        #self.assemble_f(2)
-        #self.calc_mag_field()
+        # self.assemble_f(2)
+        # self.calc_mag_field()
         
         self.u_cart_symm = np.ones(self.X.shape)
         self.orientation = orientation
@@ -342,6 +342,52 @@ class PCB_u:
         # the field at the z sides are summed with itself reversed in the x direction
         self.field_symm[4:6,:,:,0] += -self.symm_sign*self.field_symm[4:6,:,::-1,0]
         self.field_symm[4:6,:,:,1:3] += self.symm_sign*self.field_symm[4:6,:,::-1,1:3]
+        
+        
+    def coeff_to_current(self, pnts_in_el):
+        # make a finer grid to plot, the number of points is the number of elements (M+1) 
+        # times the amount of pnts in each element, 1 is added to include the end point
+        self.x_curr = np.linspace(*self.x_bnd, pnts_in_el*(self.M+1)+1)
+        self.y_curr = np.linspace(*self.y_bnd, pnts_in_el*(self.M+1)+1)
+        self.Y_curr, self.X_curr = np.meshgrid(self.y_curr,self.x_curr)
+        
+        # initialize arrays
+        self.current_x = np.zeros(self.X_curr.shape)
+        self.current_y = np.zeros(self.X_curr.shape)
+        
+        self.potential = np.zeros(self.X_curr.shape)
+        
+        # collection of shifts to the closest grid points of the hat functions
+        add = [[-1,-1], [0,-1], [-1,0], [0,0]]
+        # loop over the elements
+        # ind and jnd are indexes of each element
+        for ind in range(self.M+1):
+            for jnd in range(self.M+1):
+                # transform the element wise index to starting point of the global index of all the points
+                i = ind*pnts_in_el
+                j = jnd*pnts_in_el
+                
+                # loop over the grid points of interest
+                for a in add:
+                    # if the element is a boundary element then the points which need to be taken
+                    # do not exist so it fails and continues to the next point
+                    try:
+                        # make a matrix of all the points in the element and shift it to the 
+                        # reference element
+                        x = self.X_curr[i:i+pnts_in_el,j:j+pnts_in_el] - self.x[ind + a[0]]
+                        y = self.Y_curr[i:i+pnts_in_el,j:j+pnts_in_el] - self.y[jnd + a[1]]
+                        
+                        # calculate the current on the points
+                        curr = current_lambda(x, y, self.h)
+                        
+                        # add the current times the respective coefficients to the final matrix
+                        self.current_x[i:i+pnts_in_el,j:j+pnts_in_el] += self.u_cart[ind + a[0],jnd + a[1]]*curr[0]
+                        self.current_y[i:i+pnts_in_el,j:j+pnts_in_el] += self.u_cart[ind + a[0],jnd + a[1]]*curr[1]
+                        
+                        # add the potential times the respective coefficients to the final matrix
+                        self.potential[i:i+pnts_in_el,j:j+pnts_in_el] += self.u_cart[ind + a[0],jnd + a[1]]*lambda_2D(x,y,self.h)
+                    except:
+                        continue
         
         
     ############################
