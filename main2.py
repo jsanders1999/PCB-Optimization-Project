@@ -1,4 +1,3 @@
-
 import numpy as np
 import scipy as sp
 import scipy.integrate as si
@@ -16,12 +15,11 @@ from PCBClass import PCB_u
 from OptimizeClass import optimize_k
 
 res = 20
-M = 15
+M = 8
 
 cube = Cube(res)
 pcb = PCB_u(M, None, cube, 0)
 
-#ax = pcb.plot_field_arrow_3d()
  
 P   = 4         #power [W]
 rho = 1         #resistivity [?]
@@ -32,14 +30,7 @@ uNorm = (P*M*M)/(4*rho*Dz)
 # u_start = (uNorm/M**2)*np.ones(M**2)
 u_start = (uNorm/M**2)*np.random.rand(M**2)
 
-#u_start[int((M-1)**2/2+(M-1)/2)] = 400
-#u_start[int((M-1)**2/2+(M-1)/2)+1] = -200
 
-#for i in range(M):
-#    for j in range(M):
-#        if i<M/4 or i>3*M/4 or j<M/4 or j>3*M/4:
-#            u_start[(M-1)*i+j] = 1
-#u_start = (uNorm/M**2)*np.random.normal(size = M**2)
 u_start = (uNorm/M**2)*u_start/np.linalg.norm(u_start)
 print("Norm u_start",np.linalg.norm(u_start), uNorm/M**2)
 
@@ -48,14 +39,8 @@ Q = pcb.SS_x + pcb.SS_y + pcb.SS_z
 J = np.ones((pcb.cube.resolution**3,pcb.cube.resolution**3))
 R = pcb.S_z.T@J@pcb.S_z
 
-#print(li.null_space(Q))
 nSpace = li.null_space(Q)
 print("Null Space shape:", nSpace.shape)
-#u = u_start
-# for k in range(nSpace.shape[1]):
-#     print(k)
-#     plt.imshow(np.reshape(nSpace[:,k], (M,M), order = "C"))
-#     plt.show()
     
 opti_instance = optimize_k(pcb)
 # u1 , Vu1 = opti_instance.gradient_descent_normed(u_start, 50000, 3e10, uNorm)
@@ -65,37 +50,27 @@ u3 , Vu3, optres = opti_instance.scipy_minimum(u_start, uNorm/M**2) #Only works 
 
 print(np.linalg.norm(optres.jac)) 
 print(optres)
-# B_opt = [1/res**3*np.sum(Sx@u_opt), 1/res**3*np.sum(Sy@u_opt), 1/res**3*np.sum(Sz@u_opt)]
-#u, V, u_best, V_best = line_search_line_min(Q, R, res, uNorm, u_start, 500, alpha = 0.0)
-#print(u_best)
 
+
+
+print("Final uniformity", Vu3)
+print("Jacobian norm ", np.linalg.norm(optres.jac))
 #Plotting
 
 fig4, ax4 = plt.subplots(1,1)
 ax4.imshow(u3.reshape((M,M)))
 
-
-# print(Vu1,Vu2[-1],Vu3,Vu4[-1])
-# print(type(Vu3))
 pcb.u_cart = np.reshape(u3, (M,M), order = "C")
+
+pcb.coeff_to_current(5)
+
+fig1, ax1 = plt.subplots(1,1)
+plt.pcolormesh(pcb.X_curr, pcb.Y_curr, pcb.potential)
 
 pcb.plot_curl_potential()
 pcb.plot_curl_potential( contour_lvl = 10)
 
 
-
-# print('\n',Vu3)
-#print(u)
-
-# fig1, ax1 = plt.subplots(1,1)
-
-# pc1 = ax1.contour(pcb.X, pcb.Y, pcb.u_cart, levels = 10)
-# plt.colorbar(pc1)
-# ax1.set_title("contours of u vector")
-# ax1.set_xlabel("x [m]")
-# ax1.set_ylabel("y [m]")
-# ax1.set_aspect("equal")
-# plt.show()
 
 fig2, ax2 = plt.subplots(1,1)
 

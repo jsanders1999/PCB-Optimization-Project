@@ -205,7 +205,7 @@ class optimize_k:
         # print(optres)
         u = optres.x/np.linalg.norm(optres.x)*u_norm
         V = self.opti_func(optres.x)
-        return u, V
+        return u, V, optres
 
 
     def line_search_line_perturb(self, u_start, n_steps, u_norm):
