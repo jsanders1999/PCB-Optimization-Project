@@ -5,8 +5,8 @@ import matplotlib.pyplot as plt
 MEDIUM_FONT = 14
 LARGE_FONT = MEDIUM_FONT + 2
 SMALL_FONT = MEDIUM_FONT + 2
-figsize = None #(12,9)
-figsize_square = None #(9,9)
+figsize = (12,9)
+figsize_square = (9,9)
 
 
 def plot_field(field, cube, z, orientation, fig = None, ax = None):

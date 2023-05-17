@@ -49,6 +49,7 @@ def current_lambda(x, y, x_0):
 if __name__ == "__main__":
     import matplotlib.pyplot as plt
     
+    plt.close('all')
     x_min = -2
     x_max = 2
     N = 10
