@@ -106,7 +106,7 @@ def gradient_descent_normed(u_start, Q, R, N,  n_steps, stepsize, u_norm):
             u += -grad*(stepsize/(np.sqrt(np.sqrt(step))+5))
             u = u/np.linalg.norm(u)*u_norm
             if True:
-                if step%50 ==0 or step <50:
+                if step%1000 ==0:# or step <50:
                     print("itteration: ", step, "Uniformity:", Uniformity(u, Q, R, N))
         return u, Uniformity(u, Q, R, N)
 
@@ -173,7 +173,7 @@ class optimize_k:
         Vs = [self.opti_func(u_old)]
         improv = self.opti_func(u_old)
         count = 0
-        print(count, " : ", Vs[-1])
+        # print(count, " : ", Vs[-1])
         while count < n_steps:# and improv>1:
             grad = self.opti_grad(u_old)
             u_normed = u_old/np.linalg.norm(u_old)
@@ -181,7 +181,7 @@ class optimize_k:
             if True: #d.T@self.R@d * u_old.T@self.Q@d > d.T@self.Q@d * u_old.T@self.R@d:
                 func = lambda t: self.opti_func(u_old - t*d)
                 t_optimal = sp.optimize.minimize(func, 5e4*np.random.normal()).x[0]
-                print(t_optimal)
+                # print(t_optimal)
                 #t_optimal = -1/2*(d.T@self.Q@d * u_old.T@self.R@u_old - d.T@self.R@d * u_old.T@self.Q@u_old)/(d.T@self.R@d * u_old.T@self.Q@d - d.T@self.Q@d * u_old.T@self.R@d)
                 step = - t_optimal*d #+alpha*step 
                 u_new = u_old + step
@@ -196,7 +196,8 @@ class optimize_k:
             Vs.append(self.opti_func(u_old))
             count +=1
             if self.verbose:
-                print(count, " : ", Vs[-1])
+                if count%100 == 0:
+                    print(count, " : ", Vs[-1])
         return u_old, Vs
     
     def scipy_minimum(self, u_start, u_norm):
