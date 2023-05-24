@@ -14,7 +14,7 @@ from LexgraphicTools import *
 from PCBClass import PCB_u
 from OptimizeClass import optimize_k
 
-res = 8
+res = 10
 M = 3
 
 cube = Cube(res)

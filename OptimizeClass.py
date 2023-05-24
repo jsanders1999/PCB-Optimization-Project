@@ -214,7 +214,7 @@ class optimize_k:
         r,phi_start = cartesian_to_sphere(u_start)
         func = lambda phi: self.opti_func_sphere(r,phi)
         grad = lambda phi: self.opti_grad_sphere(r,phi)
-        optres = sp.optimize.minimize(func, phi_start, jac =  grad, method = 'SLSQP')
+        optres = sp.optimize.minimize(func, phi_start, jac =  grad, method = 'BFGS')
         # print(optres)
         u = sphere_to_cartesian(r,optres.x)
         V = self.opti_func_sphere(r,optres.x)
