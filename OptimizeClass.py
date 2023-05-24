@@ -130,7 +130,10 @@ class optimize_k:
     def opti_grad(self, u):
         return GradUniformity(u, self.Q, self.R, self.pcb.cube.resolution)
     
-    
+    def opti_func_sphere(self,r,phi):
+        u = sphere_to_cartesian(r,phi)
+        return Uniformity(u, self.Q, self.R, self.pcb.cube.resolution)
+
     def opti_grad_sphere(self,r,phi):
         return GradUniformity_spherical(r,phi, self.Q, self.R, self.pcb.cube.resolution)
 
@@ -205,6 +208,16 @@ class optimize_k:
         # print(optres)
         u = optres.x/np.linalg.norm(optres.x)*u_norm
         V = self.opti_func(optres.x)
+        return u, V, optres
+
+    def scipy_minimum_sphere(self, u_start, u_norm):
+        r,phi_start = cartesian_to_sphere(u_start)
+        func = lambda phi: self.opti_func_sphere(r,phi)
+        grad = lambda phi: self.opti_grad_sphere(r,phi)
+        optres = sp.optimize.minimize(func, phi_start, jac =  grad, method = 'SLSQP')
+        # print(optres)
+        u = sphere_to_cartesian(r,optres.x)
+        V = self.opti_func_sphere(r,optres.x)
         return u, V, optres
 
 
