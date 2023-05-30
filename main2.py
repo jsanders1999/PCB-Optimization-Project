@@ -15,7 +15,7 @@ from PCBClass import PCB_u
 from OptimizeClass import optimize_k
 
 res = 10
-M = 3
+M = 5
 
 cube = Cube(res)
 pcb = PCB_u(M, None, cube, 0)
@@ -27,8 +27,8 @@ Dz  = 0.0001    #trace thickness [m]
 
 uNorm = (P*M*M)/(4*rho*Dz)
 
-# u_start = (uNorm/M**2)*np.ones(M**2)
-u_start = (uNorm/M**2)*np.random.rand(M**2)
+u_start = (uNorm/M**2)*np.ones(M**2)
+# u_start = (uNorm/M**2)*np.random.rand(M**2)
 
 
 u_start = (uNorm/M**2)*u_start/np.linalg.norm(u_start)
@@ -45,47 +45,49 @@ print("Null Space shape:", nSpace.shape)
 opti_instance = optimize_k(pcb)
 # u1 , Vu1 = opti_instance.gradient_descent_normed(u_start, 50000, 3e10, uNorm)
 # u2 , Vu2 = opti_instance.line_search_line_min(u_start, 1500, uNorm/M**2)
-u3 , Vu3, optres = opti_instance.scipy_minimum_sphere(u_start, uNorm/M**2) #Only works up to M=10
+u3 , Vu3, optres = opti_instance.scipy_minimum_sphere(u_start) #Only works up to M=10
 # u4 , Vu4 = opti_instance.line_search_sphere(u_start, 50, uNorm/M**2)
+u5, Vu5, grad = opti_instance.BFGS_sphere(u_start,1000)
 
-print(np.linalg.norm(optres.jac)) 
-print(optres)
+print("jacobian linalg norm scipy ",np.linalg.norm(optres.jac)) 
 
+print("jacobian linalg norm own BFGS ",np.linalg.norm(grad))
 
-
-# print("Final uniformity", Vu3)
-# print("Jacobian norm ", np.linalg.norm(optres.jac))
-#Plotting
-
+print("Final uniformity scipy", Vu3)
+print("Final uniformity own BFGS", Vu5)
 
 ##Figure 1 Imshow
 fig1, ax1 = plt.subplots(1,1)
 ax1.imshow(u3.reshape((M,M)))
 
-pcb.u_cart = np.reshape(u3, (M,M), order = "C")
-
-pcb.coeff_to_current(5)
-
-
-##Figure 2
 fig2, ax2 = plt.subplots(1,1)
-plt.pcolormesh(pcb.X_curr, pcb.Y_curr, pcb.potential)
-
-##Figure 3 Current Potential
-pcb.plot_curl_potential()
-## Figure 4 Current Loops
-pcb.plot_curl_potential( contour_lvl = 10)
+ax1.imshow(u5.reshape((M,M)))
 
 
-##Figure 5
-fig3, ax3 = plt.subplots(1,1)
+# pcb.u_cart = np.reshape(u3, (M,M), order = "C")
 
-pc2 = ax3.pcolormesh(pcb.X, pcb.Y, pcb.u_cart)
-plt.colorbar(pc2)
-ax3.set_title("u vector")
-ax3.set_xlabel("x [m]")
-ax3.set_ylabel("y [m]")
-ax3.set_aspect("equal")
-plt.show()
+# pcb.coeff_to_current(5)
 
-pcb.system_analysis()
+
+# ##Figure 2
+# fig2, ax2 = plt.subplots(1,1)
+# plt.pcolormesh(pcb.X_curr, pcb.Y_curr, pcb.potential)
+
+# ##Figure 3 Current Potential
+# pcb.plot_curl_potential()
+# ## Figure 4 Current Loops
+# pcb.plot_curl_potential( contour_lvl = 10)
+
+
+# ##Figure 5
+# fig3, ax3 = plt.subplots(1,1)
+
+# pc2 = ax3.pcolormesh(pcb.X, pcb.Y, pcb.u_cart)
+# plt.colorbar(pc2)
+# ax3.set_title("u vector")
+# ax3.set_xlabel("x [m]")
+# ax3.set_ylabel("y [m]")
+# ax3.set_aspect("equal")
+# plt.show()
+
+# pcb.system_analysis()
