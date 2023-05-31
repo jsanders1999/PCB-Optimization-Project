@@ -101,6 +101,21 @@ def gradient_descent_normed(u_start, Q, R, N,  n_steps, stepsize, u_norm):
                     print("itteration: ", step, "Uniformity:", Uniformity(u, Q, R, N))
         return u, Uniformity(u, Q, R, N)
 
+
+def line_search(f, a, b, tol=1e-4):
+    gr = (np.sqrt(5) + 1) / 2
+    c = b - (b - a) / gr
+    d = a + (b - a) / gr
+    while abs(b - a) > tol:
+        if f(c) < f(d):  
+            b = d
+        else:
+            a = c
+        c = b - (b - a) / gr
+        d = a + (b - a) / gr
+    return (b + a) / 2
+
+
 class optimize_k:
     def __init__(self, pcb, verbose = True):
         self.pcb = pcb
@@ -285,7 +300,8 @@ class optimize_k:
             func = lambda alp: self.opti_func_sphere(r,phi + alp*p)
 
             opti_alp = sp.optimize.minimize(func,1e-3).x[0]                                                                            ##Step 2: Linesearch
-            
+            # opti_alp = line_search(func,-1,1)
+
             s = opti_alp*p                                                                                                          ##Step 3: s_k = alp_k p_k
             phi += s                                                                                                                ##        x_(k+1) = x_k + s_k
             y = self.opti_grad_sphere(r,phi)-g                                                                                       #Step 4: y_k = grad f(phi_k+1)-grad f(phi_k)
