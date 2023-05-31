@@ -14,8 +14,8 @@ from LexgraphicTools import *
 from PCBClass import PCB_u
 from OptimizeClass import optimize_k
 
-res = 10
-M = 5
+res = 20
+M = 6
 
 cube = Cube(res)
 pcb = PCB_u(M, None, cube, 0)
@@ -47,47 +47,51 @@ opti_instance = optimize_k(pcb)
 # u2 , Vu2 = opti_instance.line_search_line_min(u_start, 1500, uNorm/M**2)
 u3 , Vu3, optres = opti_instance.scipy_minimum_sphere(u_start) #Only works up to M=10
 # u4 , Vu4 = opti_instance.line_search_sphere(u_start, 50, uNorm/M**2)
-u5, Vu5, grad = opti_instance.BFGS_sphere(u_start,1000)
+u5, Vu5, grad = opti_instance.BFGS_sphere(u_start,1e-4,10000)
 
-print("jacobian linalg norm scipy ",np.linalg.norm(optres.jac)) 
+# print(optres)
+print("Result scipy", optres.message)
+print("jacobian linalg norm scipy: ",np.linalg.norm(optres.jac)) 
 
 print("jacobian linalg norm own BFGS ",np.linalg.norm(grad))
 
 print("Final uniformity scipy", Vu3)
 print("Final uniformity own BFGS", Vu5)
 
+# print(u5)
 ##Figure 1 Imshow
-fig1, ax1 = plt.subplots(1,1)
-ax1.imshow(u3.reshape((M,M)))
+# fig1, ax1 = plt.subplots(1,1)
+# u3imshow = ax1.imshow(u3.reshape((M,M)))
+# fig1.colorbar(u3imshow, ax = ax1)
 
-fig2, ax2 = plt.subplots(1,1)
-ax1.imshow(u5.reshape((M,M)))
-
-
-# pcb.u_cart = np.reshape(u3, (M,M), order = "C")
-
-# pcb.coeff_to_current(5)
-
-
-# ##Figure 2
 # fig2, ax2 = plt.subplots(1,1)
-# plt.pcolormesh(pcb.X_curr, pcb.Y_curr, pcb.potential)
+# u5imshow = ax2.imshow(u5.reshape((M,M)))
+# fig1.colorbar(u5imshow, ax = ax2)
 
-# ##Figure 3 Current Potential
-# pcb.plot_curl_potential()
-# ## Figure 4 Current Loops
-# pcb.plot_curl_potential( contour_lvl = 10)
+pcb.u_cart = np.reshape(u5, (M,M), order = "C")
+
+pcb.coeff_to_current(5)
 
 
-# ##Figure 5
-# fig3, ax3 = plt.subplots(1,1)
+##Figure 2
+fig2, ax2 = plt.subplots(1,1)
+plt.pcolormesh(pcb.X_curr, pcb.Y_curr, pcb.potential)
 
-# pc2 = ax3.pcolormesh(pcb.X, pcb.Y, pcb.u_cart)
-# plt.colorbar(pc2)
-# ax3.set_title("u vector")
-# ax3.set_xlabel("x [m]")
-# ax3.set_ylabel("y [m]")
-# ax3.set_aspect("equal")
-# plt.show()
+##Figure 3 Current Potential
+pcb.plot_curl_potential()
+## Figure 4 Current Loops
+pcb.plot_curl_potential( contour_lvl = 10)
 
-# pcb.system_analysis()
+
+##Figure 5
+fig3, ax3 = plt.subplots(1,1)
+
+pc2 = ax3.pcolormesh(pcb.X, pcb.Y, pcb.u_cart)
+plt.colorbar(pc2)
+ax3.set_title("u vector")
+ax3.set_xlabel("x [m]")
+ax3.set_ylabel("y [m]")
+ax3.set_aspect("equal")
+plt.show()
+
+pcb.system_analysis()

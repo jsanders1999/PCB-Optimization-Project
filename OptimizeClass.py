@@ -255,42 +255,51 @@ class optimize_k:
                 print(count, " : ", Vs[-1])
         return sphere_to_cartesian(r,phi_old), Vs
     
-    def BFGS_sphere(self, u_start,n_steps):
+    def BFGS_sphere(self, u_start,tol,n_steps):
         '''
         BFGS without using the Hessian
         Possibly slow because of lambda expressions
+        Gives similar results as scipy method, 
         '''
         r,phi = cartesian_to_sphere(u_start)
-        func = lambda phi: self.opti_func_sphere(r,phi)
-        grad = lambda phi: self.opti_grad_sphere(r,phi)
         Binv = np.eye(len(phi))
-        gradnormnew = np.linalg.norm(grad(phi))
-        wrongcount = 0
-        y = np.ones(len(phi))
+        g = self.opti_grad_sphere(r,phi)                                                                                                          ##Step 4: y_k = grad f(phi_k+1)-grad f(phi_k)
+        p = -Binv@g                                                                                                              ##Step 1:Solve B_k p_k = grad f(phi)
+        func = lambda alp: self.opti_func_sphere(r,phi + alp*p)
+
+        opti_alp = sp.optimize.minimize(func,1e-3).x[0]                                                                                  ##Step 2: Linesearch
+        
+        s = opti_alp*p                                                                                                          ##Step 3: s_k = alp_k p_k
+        phi += s                                                                                                                ##        x_(k+1) = x_k + s_k
+        y = self.opti_grad_sphere(r,phi)-g                                                                                       #Step 4: y_k = grad f(phi_k+1)-grad f(phi_k)
         k = 0
-        while np.linalg.norm(y) > 1e-10:
-            y = -grad(phi)                                                                                                          ##Step 4: y_k = grad f(phi_k+1)-grad f(phi_k)
-            gradnormold = gradnormnew
-            gradnormnew = np.linalg.norm(y)
-            p = Binv@y                                                                                                              ##Step 1:Solve B_k p_k = grad f(phi)
+        bestV = 100000
+        cont = True
+        while cont:
+            Binv = Binv + ((s@y+y@Binv@y)/((s@y)**2))*(np.outer(s,s))  - (1/(s@y))*(np.outer(Binv@y,s) + np.outer(s,y@Binv))        ##Step 5: Update Binv
+                        
+            
+            g = self.opti_grad_sphere(r,phi)                                                                                                          ##Step 4: y_k = grad f(phi_k+1)-grad f(phi_k)
+            
+            p = -Binv@g                                                                                                              ##Step 1:Solve B_k p_k = grad f(phi)
             func = lambda alp: self.opti_func_sphere(r,phi + alp*p)
 
             opti_alp = sp.optimize.minimize(func,1e-3).x[0]                                                                            ##Step 2: Linesearch
-
+            
             s = opti_alp*p                                                                                                          ##Step 3: s_k = alp_k p_k
             phi += s                                                                                                                ##        x_(k+1) = x_k + s_k
-            y += grad(phi)                                                                                                          #Step 4: y_k = grad f(phi_k+1)-grad f(phi_k)
+            y = self.opti_grad_sphere(r,phi)-g                                                                                       #Step 4: y_k = grad f(phi_k+1)-grad f(phi_k)
 
-            Binv = Binv + ((s@y+y@Binv@y)/((s@y)**2))*(np.outer(s,s))  - (1/(s@y))*(np.outer(Binv@y,s) + np.outer(s,y@Binv))        ##Step 5: Update Binv
-            
-            if gradnormold < gradnormnew and wrongcount <10:
-                print(gradnormold,gradnormnew )
-                print("problem convergence step ",k)
-                wrongcount +=1
-            if np.isnan(((s@y+y@Binv@y)/((s@y)**2))) or np.isnan((1/(s@y))):
-                print(s)
-                print(y)
             k+=1
-        u = sphere_to_cartesian(r,phi)
-        V = self.opti_func_sphere(r,phi)
-        return u, V, grad(phi)
+            if np.linalg.norm(y) < 1e-4*tol or np.linalg.norm(s) < 1e-4*tol or np.linalg.norm(g) < tol and k > n_steps:
+                cont = False
+            if self.opti_func_sphere(r,phi) < bestV:
+                last_improv = k
+                bestu = sphere_to_cartesian(r,phi)
+                bestV = self.opti_func_sphere(r,phi)
+                bestgrad = self.opti_grad_sphere(r,phi)
+            if k-last_improv> 1/10*n_steps:
+                cont = False
+        print(k-last_improv > 1/10*n_steps,np.linalg.norm(y) < 1e-4*tol,np.linalg.norm(s) < 1e-4*tol,np.linalg.norm(g) < tol,k > n_steps)
+        return bestu, bestV, bestgrad
+
