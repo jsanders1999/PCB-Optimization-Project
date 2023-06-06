@@ -214,16 +214,6 @@ class optimize_k:
         V = self.opti_func(optres.x)
         return u, V, optres
 
-    def scipy_minimum_sphere(self, u_start):
-        r,phi_start = cartesian_to_sphere(u_start)
-        func = lambda phi: self.opti_func_sphere(r,phi)
-        grad = lambda phi: self.opti_grad_sphere(r,phi)
-        optres = sp.optimize.minimize(func, phi_start, jac =  grad, method = 'BFGS')
-        u = sphere_to_cartesian(r,optres.x)
-        V = self.opti_func_sphere(r,optres.x)
-        return u, V, optres
-
-
     def line_search_line_perturb(self, u_start, n_steps, u_norm):
         u = u_start
         Vs = [self.opti_func(u)]
@@ -270,9 +260,20 @@ class optimize_k:
                 print(count, " : ", Vs[-1])
         return sphere_to_cartesian(r,phi_old), Vs
     
+    def scipy_minimum_sphere(self, u_start):
+        r,phi_start = cartesian_to_sphere(u_start)
+        func = lambda phi: self.opti_func_sphere(r,phi)
+        grad = lambda phi: self.opti_grad_sphere(r,phi)
+        optres = sp.optimize.minimize(func, phi_start, jac =  grad, method = 'BFGS')
+        u = sphere_to_cartesian(r,optres.x)
+        V = self.opti_func_sphere(r,optres.x)
+        return u, V, optres
+    
+    
     def BFGS_sphere(self, u_start,tol,n_steps):
         '''
-        BFGS without using the Hessian
+        BFGS without using the Hessian and without use of scipy
+        Works well up to M=9
         '''
         r,phi = cartesian_to_sphere(u_start)
         Binv = np.eye(len(phi))
@@ -280,7 +281,8 @@ class optimize_k:
         p = -Binv@g                                                                                                              ##Step 1:Solve B_k p_k = grad f(phi)
         func = lambda alp: self.opti_func_sphere(r,phi + alp*p)
 
-        opti_alp = sp.optimize.minimize(func,1e-3).x[0]                                                                                  ##Step 2: Linesearch
+        # opti_alp = sp.optimize.minimize(func,1e-3).x[0]                                                                                  ##Step 2: Linesearch
+        opti_alp = sp.optimize.minimize(func,np.random.normal()).x[0]                                                                                  ##Step 2: Linesearch
         
         s = opti_alp*p                                                                                                          ##Step 3: s_k = alp_k p_k
         phi += s                                                                                                                ##        x_(k+1) = x_k + s_k
@@ -288,6 +290,7 @@ class optimize_k:
         k = 0
         bestV = 100000
         cont = True
+        last_improv = 0
         while cont:
             Binv = Binv + ((s@y+y@Binv@y)/((s@y)**2))*(np.outer(s,s))  - (1/(s@y))*(np.outer(Binv@y,s) + np.outer(s,y@Binv))        ##Step 5: Update Binv
                         
@@ -297,9 +300,9 @@ class optimize_k:
             p = -Binv@g                                                                                                              ##Step 1:Solve B_k p_k = grad f(phi)
             func = lambda alp: self.opti_func_sphere(r,phi + alp*p)
 
-            opti_alp = sp.optimize.minimize(func,1e-3).x[0]                                                                            ##Step 2: Linesearch
+            # opti_alp = sp.optimize.minimize(func,1e-3).x[0]                                                                            ##Step 2: Linesearch
+            opti_alp = sp.optimize.minimize(func,np.random.normal()).x[0]                                                                            ##Step 2: Linesearch
             # opti_alp = line_search(func,-1,1)
-            ## try sp.optimize.line_search
             s = opti_alp*p                                                                                                          ##Step 3: s_k = alp_k p_k
             phi += s                                                                                                                ##        x_(k+1) = x_k + s_k
             y = self.opti_grad_sphere(r,phi)-g                                                                                       #Step 4: y_k = grad f(phi_k+1)-grad f(phi_k)
@@ -313,6 +316,7 @@ class optimize_k:
                 bestV = self.opti_func_sphere(r,phi)
                 bestgrad = self.opti_grad_sphere(r,phi)
             if k-last_improv> 1/10*n_steps:
+                print(k,last_improv)
                 cont = False
         print(k-last_improv > 1/10*n_steps,np.linalg.norm(y) < 1e-4*tol,np.linalg.norm(s) < 1e-4*tol,np.linalg.norm(g) < tol,k > n_steps)
         return bestu, bestV, bestgrad

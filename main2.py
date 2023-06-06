@@ -1,3 +1,11 @@
+'''
+Constructs PCB, then optimizes for lowest variance
+Optimisation method uses the BFGS.
+It works up to M=6 really well, up to M=9 it works sometimes, but often not as some values of starting point uStart don't work or things go wrong in the linesearch.
+
+'''
+
+
 import numpy as np
 import scipy as sp
 import scipy.integrate as si
@@ -15,7 +23,8 @@ from PCBClass import PCB_u
 from OptimizeClass import optimize_k
 
 res = 20
-M = 6
+M = 7
+
 
 cube = Cube(res)
 pcb = PCB_u(M, None, cube, 0)
@@ -29,6 +38,8 @@ uNorm = (P*M*M)/(4*rho*Dz)
 
 u_start = (uNorm/M**2)*np.ones(M**2)
 # u_start = (uNorm/M**2)*np.random.rand(M**2)
+# u_start = np.zeros(M**2)
+# u_start[0], u_start[M-1], u_start[-M], u_start[-1] = 1,1,1,1
 
 
 u_start = (uNorm/M**2)*u_start/np.linalg.norm(u_start)
@@ -43,20 +54,17 @@ nSpace = li.null_space(Q)
 print("Null Space shape:", nSpace.shape)
     
 opti_instance = optimize_k(pcb)
-# u1 , Vu1 = opti_instance.gradient_descent_normed(u_start, 50000, 3e10, uNorm)
-# u2 , Vu2 = opti_instance.line_search_line_min(u_start, 1500, uNorm/M**2)
-u3 , Vu3, optres = opti_instance.scipy_minimum_sphere(u_start) #Only works up to M=10
-# u4 , Vu4 = opti_instance.line_search_sphere(u_start, 50, uNorm/M**2)
-u5, Vu5, grad = opti_instance.BFGS_sphere(u_start,1e-4,10000)
+# u1 , V1, optres = opti_instance.scipy_minimum_sphere(u_start) #Only works up to M=10
+u2, V2, grad = opti_instance.BFGS_sphere(u_start,1e-4,20000)
 
 # print(optres)
-print("Result scipy", optres.message)
-print("jacobian linalg norm scipy: ",np.linalg.norm(optres.jac)) 
+# print("Result scipy", optres.message)
+# print("Norm Jacobian scipy: ",np.linalg.norm(optres.jac)) 
 
-print("jacobian linalg norm own BFGS ",np.linalg.norm(grad))
+print("Norm Jacobian BFGS ",np.linalg.norm(grad))
 
-print("Final uniformity scipy", Vu3)
-print("Final uniformity own BFGS", Vu5)
+# print("Final uniformity scipy", V1)
+print("Final variance own BFGS", V2)
 
 # print(u5)
 ##Figure 1 Imshow
@@ -64,11 +72,8 @@ print("Final uniformity own BFGS", Vu5)
 # u3imshow = ax1.imshow(u3.reshape((M,M)))
 # fig1.colorbar(u3imshow, ax = ax1)
 
-# fig2, ax2 = plt.subplots(1,1)
-# u5imshow = ax2.imshow(u5.reshape((M,M)))
-# fig1.colorbar(u5imshow, ax = ax2)
 
-pcb.u_cart = np.reshape(u5, (M,M), order = "C")
+pcb.u_cart = np.reshape(u2, (M,M), order = "C")
 
 pcb.coeff_to_current(5)
 
