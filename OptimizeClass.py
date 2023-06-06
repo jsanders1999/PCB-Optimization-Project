@@ -273,8 +273,6 @@ class optimize_k:
     def BFGS_sphere(self, u_start,tol,n_steps):
         '''
         BFGS without using the Hessian
-        Possibly slow because of lambda expressions
-        Gives similar results as scipy method, 
         '''
         r,phi = cartesian_to_sphere(u_start)
         Binv = np.eye(len(phi))
@@ -301,7 +299,7 @@ class optimize_k:
 
             opti_alp = sp.optimize.minimize(func,1e-3).x[0]                                                                            ##Step 2: Linesearch
             # opti_alp = line_search(func,-1,1)
-
+            ## try sp.optimize.line_search
             s = opti_alp*p                                                                                                          ##Step 3: s_k = alp_k p_k
             phi += s                                                                                                                ##        x_(k+1) = x_k + s_k
             y = self.opti_grad_sphere(r,phi)-g                                                                                       #Step 4: y_k = grad f(phi_k+1)-grad f(phi_k)
