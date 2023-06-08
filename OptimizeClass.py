@@ -281,8 +281,8 @@ class optimize_k:
         p = -Binv@g                                                                                                              ##Step 1:Solve B_k p_k = grad f(phi)
         func = lambda alp: self.opti_func_sphere(r,phi + alp*p)
 
-        # opti_alp = sp.optimize.minimize(func,1e-3).x[0]                                                                                  ##Step 2: Linesearch
-        opti_alp = sp.optimize.minimize(func,np.random.normal()).x[0]                                                                                  ##Step 2: Linesearch
+        opti_alp = sp.optimize.minimize(func,1e-3).x[0]                                                                                  ##Step 2: Linesearch
+        # opti_alp = sp.optimize.minimize(func,np.random.normal()).x[0]                                                                                  ##Step 2: Linesearch
         
         s = opti_alp*p                                                                                                          ##Step 3: s_k = alp_k p_k
         phi += s                                                                                                                ##        x_(k+1) = x_k + s_k
@@ -300,8 +300,8 @@ class optimize_k:
             p = -Binv@g                                                                                                              ##Step 1:Solve B_k p_k = grad f(phi)
             func = lambda alp: self.opti_func_sphere(r,phi + alp*p)
 
-            # opti_alp = sp.optimize.minimize(func,1e-3).x[0]                                                                            ##Step 2: Linesearch
-            opti_alp = sp.optimize.minimize(func,np.random.normal()).x[0]                                                                            ##Step 2: Linesearch
+            opti_alp = sp.optimize.minimize(func,1e-3).x[0]                                                                            ##Step 2: Linesearch
+            # opti_alp = sp.optimize.minimize(func,np.random.normal()).x[0]                                                                            ##Step 2: Linesearch
             # opti_alp = line_search(func,-1,1)
             s = opti_alp*p                                                                                                          ##Step 3: s_k = alp_k p_k
             phi += s                                                                                                                ##        x_(k+1) = x_k + s_k
@@ -315,9 +315,9 @@ class optimize_k:
                 bestu = sphere_to_cartesian(r,phi)
                 bestV = self.opti_func_sphere(r,phi)
                 bestgrad = self.opti_grad_sphere(r,phi)
-            if k-last_improv> 1/10*n_steps:
-                print(k,last_improv)
-                cont = False
+            # if k-last_improv> 1/10*n_steps:
+            #     print(k,last_improv)
+            #     cont = False
         print(k-last_improv > 1/10*n_steps,np.linalg.norm(y) < 1e-4*tol,np.linalg.norm(s) < 1e-4*tol,np.linalg.norm(g) < tol,k > n_steps)
         return bestu, bestV, bestgrad
 
