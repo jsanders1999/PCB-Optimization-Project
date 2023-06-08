@@ -472,9 +472,7 @@ class PCB_u:
 
         frac_index = int(np.floor(frac*self.cube.resolution))
 
-        # ax.set_title(f'field in the {label[orientation]}-direction')
-        ax.set_xlabel('x')
-        ax.set_ylabel('y')
+        fig.suptitle(f'field in the {label[orientation]}-direction')
 
         U_x = 0.25*self.field[:,:,:,0]/np.max(self.field)
         U_y = 0.25*self.field[:,:,:,1]/np.max(self.field)
@@ -482,10 +480,41 @@ class PCB_u:
         
         if orientation == 0:
             ax.quiver(self.cube.X[:,:,frac_index], self.cube.Y[:,:,frac_index], U_x[:,:,frac_index], U_y[:,:,frac_index])
+            max_arr = 0
+            for i in range(U_x.shape[0]):
+                for j in range(U_y.shape[1]):
+                    arr_len = np.sqrt(U_x[i,j,frac_index]**2+U_y[i,j,frac_index]**2)
+                    if arr_len>max_arr:
+                        max_arr = arr_len
+            ax.set_title("Largest field arrow"+ str(max_arr))
+            ax.set_xlabel('x')
+            ax.set_ylabel('y')
         elif orientation == 1:
             ax.quiver(self.cube.Y[:,frac_index,:], self.cube.Z[:,frac_index,:], U_y[:,frac_index,:], U_z[:,frac_index,:])
+            max_arr = 0
+            for i in range(U_y.shape[0]):
+                for j in range(U_z.shape[1]):
+                    arr_len = np.sqrt(U_y[i,frac_index,j]**2+U_z[i,frac_index,j]**2)
+                    if arr_len>max_arr:
+                        max_arr = arr_len
+            ax.set_title("Largest field arrow"+ str(max_arr))
+            ax.set_xlabel('x')
+            ax.set_ylabel('y')
+            ax.set_xlabel('y')
+            ax.set_ylabel('z')
         else:
             ax.quiver(self.cube.X[frac_index,:,:], self.cube.Z[frac_index,:,:], U_x[frac_index,:,:], U_z[frac_index,:,:])
+            max_arr = 0
+            for i in range(U_x.shape[0]):
+                for j in range(U_z.shape[1]):
+                    arr_len = np.sqrt(U_x[frac_index,i,j]**2+U_y[frac_index,i,j]**2)
+                    if arr_len>max_arr:
+                        max_arr = arr_len
+            ax.set_title("Largest field arrow"+ str(max_arr))
+            ax.set_xlabel('x')
+            ax.set_ylabel('y')
+            ax.set_xlabel('x')
+            ax.set_ylabel('z')
         return fig, ax
 
 
