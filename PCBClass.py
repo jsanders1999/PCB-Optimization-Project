@@ -4,11 +4,16 @@ import matplotlib.pyplot as plt
 from tqdm import tqdm
 from numba import njit
 import json
+import scipy.sparse as sp
+
 
 from CubeClass import Cube
 from DipoleFields import *
 from LexgraphicTools import *
 from hatfunctions import *
+
+from mpl_toolkits.mplot3d import Axes3D
+from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 
 
 class PCB_u:
@@ -41,6 +46,7 @@ class PCB_u:
         self.y_bnd = y_bnd
         self.h = 2/(M +1)
         self.make_grid()
+        
 
         if u_cart:
             self.u_cart = u_cart
@@ -103,9 +109,9 @@ class PCB_u:
         y_p = (y - self.Y)
 
         # contribution of each individual dipole
-        B_xp = self.h**2*B_dipole_x(x_p, y_p, z)
-        B_yp = self.h**2*B_dipole_y(x_p, y_p, z)
-        B_zp = self.h**2*B_dipole_z(x_p, y_p, z)
+        B_xp = self.h**2*B_dipole_x(x_p, y_p, z,1/self.M)
+        B_yp = self.h**2*B_dipole_y(x_p, y_p, z,1/self.M)
+        B_zp = self.h**2*B_dipole_z(x_p, y_p, z,1/self.M)
 
         # multiply with the weigth of each dipole
         B_x = self.u_cart*B_xp
@@ -145,9 +151,9 @@ class PCB_u:
             y_p = (y - self.Y)
 
             # contribution of each individual dipole
-            B_x = self.h**2*B_dipole_x(x_p, y_p, z)
-            B_y = self.h**2*B_dipole_y(x_p, y_p, z)
-            B_z = self.h**2*B_dipole_z(x_p, y_p, z)
+            B_x = self.h**2*B_dipole_x(x_p, y_p, z,1/self.M)
+            B_y = self.h**2*B_dipole_y(x_p, y_p, z,1/self.M)
+            B_z = self.h**2*B_dipole_z(x_p, y_p, z,1/self.M)
 
             # set row of each system matrix as the flattend field array
             self.S_x[n,:] = B_x.flatten()
@@ -265,9 +271,9 @@ class PCB_u:
             y_p = (y - self.Y_symm)
 
             # contribution of each individual dipole
-            B_x = self.h**2*B_dipole_x(x_p, y_p, z)
-            B_y = self.h**2*B_dipole_y(x_p, y_p, z)
-            B_z = self.h**2*B_dipole_z(x_p, y_p, z)
+            B_x = self.h**2*B_dipole_x(x_p, y_p, z,1/self.M)
+            B_y = self.h**2*B_dipole_y(x_p, y_p, z,1/self.M)
+            B_z = self.h**2*B_dipole_z(x_p, y_p, z,1/self.M)
 
             # set row of each system matrix as the flattend field array
             self.S_symm_x[n,:] = B_x.flatten()
@@ -281,6 +287,21 @@ class PCB_u:
         J = np.ones((NNN, NNN))
         self.Q_symm = self.SS_symm_x + self.SS_symm_y + self.SS_symm_z
         self.R_symm = self.S_symm_x.T@J@self.S_symm_x + self.S_symm_y.T@J@self.S_symm_y + self.S_symm_z.T@J@self.S_symm_z 
+
+    def assemble_A(self, thick = 70e-6,resis = 1.7241e-8):
+        '''
+        Constructs Power matrix
+        '''
+        h = (self.x_bnd[1]-self.x_bnd[0])/self.M
+        diag = [8/3*h**2*np.ones(self.M)]
+        L = sp.diags(diag,[0],shape=(self.M,self.M))
+        I = sp.eye(self.M)
+        diags2 = [-1/3*h**2*np.ones(self.M-1),-1/3*h**2*np.ones(self.M-1)]
+        L2 = sp.diags(diags2,[-1,1],shape=(self.M,self.M))
+        i = np.ones((self.M-1))
+        I2 = sp.diags([i,i],[-1,1],shape=(self.M,self.M))
+        A = sp.kron(I,L)+sp.kron(L,I)+ sp.kron(I2,L2)
+        self.A = (resis/thick)*(A.A)
 
 
     def calc_mag_field_symm(self):
@@ -480,42 +501,136 @@ class PCB_u:
         
         if orientation == 0:
             ax.quiver(self.cube.X[:,:,frac_index], self.cube.Y[:,:,frac_index], U_x[:,:,frac_index], U_y[:,:,frac_index])
-            max_arr = 0
-            for i in range(U_x.shape[0]):
-                for j in range(U_y.shape[1]):
-                    arr_len = np.sqrt(U_x[i,j,frac_index]**2+U_y[i,j,frac_index]**2)
-                    if arr_len>max_arr:
-                        max_arr = arr_len
-            ax.set_title("Largest field arrow"+ str(max_arr))
             ax.set_xlabel('x')
             ax.set_ylabel('y')
         elif orientation == 1:
             ax.quiver(self.cube.Y[:,frac_index,:], self.cube.Z[:,frac_index,:], U_y[:,frac_index,:], U_z[:,frac_index,:])
             max_arr = 0
-            for i in range(U_y.shape[0]):
-                for j in range(U_z.shape[1]):
-                    arr_len = np.sqrt(U_y[i,frac_index,j]**2+U_z[i,frac_index,j]**2)
-                    if arr_len>max_arr:
-                        max_arr = arr_len
-            ax.set_title("Largest field arrow"+ str(max_arr))
-            ax.set_xlabel('x')
-            ax.set_ylabel('y')
             ax.set_xlabel('y')
             ax.set_ylabel('z')
         else:
             ax.quiver(self.cube.X[frac_index,:,:], self.cube.Z[frac_index,:,:], U_x[frac_index,:,:], U_z[frac_index,:,:])
-            max_arr = 0
-            for i in range(U_x.shape[0]):
-                for j in range(U_z.shape[1]):
-                    arr_len = np.sqrt(U_x[frac_index,i,j]**2+U_y[frac_index,i,j]**2)
-                    if arr_len>max_arr:
-                        max_arr = arr_len
-            ax.set_title("Largest field arrow"+ str(max_arr))
-            ax.set_xlabel('x')
-            ax.set_ylabel('y')
             ax.set_xlabel('x')
             ax.set_ylabel('z')
         return fig, ax
+    
+    def plot_field_arrow_all_orien(self, fracs, fig = None, ax = None,save_path = False):
+        """"
+        input: fracs = floats between 0,1, one for each orintation
+        """
+        self.calc_mag_field()
+        label = ['xy', 'yz', 'xz']
+        frac_index_z = int(np.floor(fracs[0]*self.cube.resolution))
+        frac_index_y = int(np.floor(fracs[1]*self.cube.resolution))
+        frac_index_x = int(np.floor(fracs[2]*self.cube.resolution))
+
+        U_x = 0.25*self.field[:,:,:,0]/np.max(self.field)
+        U_y = 0.25*self.field[:,:,:,1]/np.max(self.field)
+        U_z = 0.25*self.field[:,:,:,2]/np.max(self.field)
+
+        max_arr = 0
+        for i in range(U_x.shape[0]):
+            for j in range(U_y.shape[1]):
+                arr_len_xy = np.sqrt(U_x[i,j,frac_index_z]**2+U_y[i,j,frac_index_z]**2)
+                arr_len_xz = np.sqrt(U_x[frac_index_y,i,j]**2+U_z[frac_index_y,i,j]**2)
+                arr_len_yz = np.sqrt(U_y[i,frac_index_x,j]**2+U_z[i,frac_index_x,j]**2)
+                arr_len_total = max(arr_len_xy,arr_len_xz,arr_len_yz)
+                if arr_len_total>max_arr:
+                    max_arr = arr_len_total
+
+        if (not fig) and (not ax):
+            fig, (ax_z,ax_y,ax_x) = plt.subplots(1,3,figsize = (16,5))
+
+        inchscale = (self.cube.resolution/3)*max_arr
+        cmscale = 1/2.54 * (inchscale) 
+        fig.suptitle("Field in all 3 directions \n"+ r"$\uparrow$: 1 cm = {0:.4f} ".format(cmscale))
+
+        ax_z.quiver(self.cube.X[:,:,frac_index_z], self.cube.Y[:,:,frac_index_z], U_x[:,:,frac_index_z], U_y[:,:,frac_index_z],scale=inchscale, scale_units='inches')
+        ax_z.set_title("(x,y)-plane, z = {0:.2f}".format(frac_index_z/self.cube.resolution+0.1))
+        ax_z.set_xlabel('x [m]')
+        ax_z.set_ylabel('y [m]')
+        ax_z.set_box_aspect(1)
+
+        ax_y.quiver(self.cube.X[frac_index_y,:,:], self.cube.Z[frac_index_y,:,:], U_x[frac_index_y,:,:], U_z[frac_index_y,:,:],scale=inchscale, scale_units='inches')
+        ax_y.set_title("(x,z)-plane, y = {0:.2f}".format(frac_index_y/self.cube.resolution))
+        ax_y.set_xlabel('x [m]')
+        ax_y.set_ylabel('z [m]')
+        ax_y.set_box_aspect(1)
+
+        ax_x.quiver(self.cube.Y[:,frac_index_x,:], self.cube.Z[:,frac_index_x,:], U_y[:,frac_index_x,:], U_z[:,frac_index_x,:],scale=inchscale, scale_units='inches')
+        ax_x.set_title("(y,z)-plane, x = {0:.2f}".format(frac_index_x/self.cube.resolution))
+        ax_x.set_xlabel('y [m]')
+        ax_x.set_ylabel('z [m]')
+        ax_x.set_box_aspect(1)
+
+        if save_path:
+            plt.savefig(save_path+"Arrow_all_dir",dpi = 400)
+
+
+    def plot_field_arrow_extra(self, fracs, orientations, fig = None, ax = None,save_path = False):
+        """"
+        input: z = float between 0,1
+               orientation = [0,1,2] corresponding with the x,y,z direction
+        """
+        self.calc_mag_field()
+        label = ['xy', 'yz', 'xz']
+        frac_indices = []
+        for k in range(len(fracs)):
+            frac_indices.append(int(np.floor(fracs[k]*self.cube.resolution)))
+
+        U_x = 0.25*self.field[:,:,:,0]/np.max(self.field)
+        U_y = 0.25*self.field[:,:,:,1]/np.max(self.field)
+        U_z = 0.25*self.field[:,:,:,2]/np.max(self.field)
+
+        max_arr = 0
+        for i in range(U_x.shape[0]):
+            for j in range(U_y.shape[1]):
+                for k in range(len(fracs)):
+                    if orientations[k]==0:
+                        arr_len = np.sqrt(U_x[i,j,frac_indices[k]]**2+U_y[i,j,frac_indices[k]]**2)
+                    elif orientations[k]==1:
+                        arr_len = np.sqrt(U_x[frac_indices[k],i,j]**2+U_y[frac_indices[k],i,j]**2)
+                    elif orientations[k]==2:
+                        arr_len = np.sqrt(U_x[i,frac_indices[k],j]**2+U_y[i,frac_indices[k],j]**2)
+                    else:
+                        raise Exception("Orientations should be 0,1 or 2")
+                    if arr_len>max_arr:
+                        max_arr = arr_len
+
+
+        figs = int(np.ceil(len(fracs)/3))
+        if (not fig) and (not ax):
+            fig, axes = plt.subplots(nrows = figs,ncols = 3,figsize = (12,figs*3+3),layout="constrained")
+        
+
+        inchscale = (8*self.cube.resolution)*max_arr
+        cmscale = 1/2.54 * (inchscale) 
+        fig.suptitle("Field in all 3 directions \n"+ r"$\uparrow$: 1 cm = {0:.4f} ".format(cmscale))
+
+        k = 0
+        for row in axes:
+            for col in row:
+                if orientations[k] == 0:
+                    col.quiver(self.cube.X[:,:,frac_indices[k]], self.cube.Y[:,:,frac_indices[k]], U_x[:,:,frac_indices[k]], U_y[:,:,frac_indices[k]],scale=inchscale, scale_units='inches')
+                    col.set_title("(x,y)-plane, z = {0:.2f}".format(frac_indices[k]/self.cube.resolution+0.1))
+                    col.set_xlabel('x [m]')
+                    col.set_ylabel('y [m]')
+                    col.set_box_aspect(1)
+                elif orientations[k] == 1:
+                    col.quiver(self.cube.X[frac_indices[k],:,:], self.cube.Z[frac_indices[k],:,:], U_x[frac_indices[k],:,:], U_z[frac_indices[k],:,:],scale=inchscale, scale_units='inches')
+                    col.set_title("(x,z)-plane, y = {0:.2f}".format(frac_indices[k]/self.cube.resolution))
+                    col.set_xlabel('x [m]')
+                    col.set_ylabel('z [m]')
+                    col.set_box_aspect(1)
+                elif orientations[k] == 2:
+                    col.quiver(self.cube.Y[:,frac_indices[k],:], self.cube.Z[:,frac_indices[k],:], U_y[:,frac_indices[k],:], U_z[:,frac_indices[k],:],scale=inchscale, scale_units='inches')
+                    col.set_title("(y,z)-plane, x = {0:.2f}".format(frac_indices[k]/self.cube.resolution))
+                    col.set_xlabel('y [m]')
+                    col.set_ylabel('z [m]')
+                    col.set_box_aspect(1)
+                k+=1
+        if save_path:
+            plt.savefig(save_path+"Arrow_large",dpi = 400)
 
 
     def plot_field_arrow_3d(self, S = False, normalize = True, fig = None, ax = None):
@@ -523,15 +638,108 @@ class PCB_u:
         input:
         """
         self.calc_mag_field()
+
+        U_x = 0.25*self.field[:,:,:,0]/np.max(self.field)
+        U_y = 0.25*self.field[:,:,:,1]/np.max(self.field)
+        U_z = 0.25*self.field[:,:,:,2]/np.max(self.field)
+
+
+        max_arr = 0
+        for i in range(U_x.shape[0]):
+            for j in range(U_x.shape[1]):
+                for k in range(U_x.shape[2]):
+                    arr_len = np.sqrt(U_x[i,j,k]**2+U_y[i,j,k]**2+U_z[i,j,k]**2)
+                    if arr_len>max_arr:
+                        max_arr = arr_len
+
         if (not fig) and (not ax):
             ax = plt.figure().add_subplot(projection='3d')
         ax.set_xlabel('x')
         ax.set_ylabel('y')
-        U_x = 0.25*self.field[:,:,:,0]/np.max(self.field)
-        U_y = 0.25*self.field[:,:,:,1]/np.max(self.field)
-        U_z = 0.25*self.field[:,:,:,2]/np.max(self.field)
-        ax.quiver(self.cube.X, self.cube.Y, self.cube.Z, U_x, U_y, U_z)
+
+        ax.quiver(self.cube.X, self.cube.Y, self.cube.Z, U_x, U_y, U_z,arrow_length_ratio = 1/self.cube.resolution*max_arr)
         return ax
+    
+    def PlotSol3D_hatfunctions(self,u,save_path= 0,view = 1):
+        # Create 3D plot
+        fig = plt.figure(figsize=(8, 8))
+        ax = fig.add_subplot(111, projection='3d')
+
+        x = np.linspace(-1,1, 1000) 
+        y = np.linspace(-1,1, 1000)
+        X, Y = np.meshgrid(x, y)
+        Sol = np.zeros(X.shape)
+
+        X, Y = np.meshgrid(x, y)
+        phi = np.vectorize(self.curl_potential)
+        Phi = phi(X,Y)
+
+        # Plot the flat plane on the XY plane
+        ax.plot_surface(X, Y, np.zeros_like(Phi), facecolors=plt.cm.viridis((Phi -np.min(Phi))/(np.max(Phi)-np.min(Phi))), shade=False, antialiased=False, zorder=-1)
+
+        V = [-0.5, 0.5, -0.5, 0.5, 0.1, 1.1]
+
+        vertices = [
+            [V[0], V[2], V[4]],
+            [V[1], V[2], V[4]],
+            [V[1], V[3], V[4]],
+            [V[0], V[3], V[4]],
+            [V[0], V[2], V[5]],
+            [V[1], V[2], V[5]],
+            [V[1], V[3], V[5]],
+            [V[0], V[3], V[5]]
+        ]
+
+        edges = [
+            [vertices[0], vertices[1]],
+            [vertices[1], vertices[2]],
+            [vertices[2], vertices[3]],
+            [vertices[3], vertices[0]],
+            [vertices[4], vertices[5]],
+            [vertices[5], vertices[6]],
+            [vertices[6], vertices[7]],
+            [vertices[7], vertices[4]],
+            [vertices[0], vertices[4]],
+            [vertices[1], vertices[5]],
+            [vertices[2], vertices[6]],
+            [vertices[3], vertices[7]]
+        ]
+        ax.set_zlim(-0.5,1.5)
+        ax.set_aspect("equal")
+
+        edge_collection = Poly3DCollection(edges, linewidths=2.5, edgecolors='red')
+        ax.add_collection(edge_collection)
+        #ax.set_xlim(-1.25,1.25)
+        #ax.set_ylim(-1.25,1.25)
+
+        x2 = np.linspace(V[0], V[1], self.cube.resolution)  # Discretize the target volume into a grid
+        y2 = np.linspace(V[2], V[3], self.cube.resolution)
+        z2 = np.linspace(V[4], V[5], self.cube.resolution)
+        Z2, Y2, X2 = np.meshgrid(z2, y2, x2, indexing='ij')
+        X2 = X2.reshape((self.cube.resolution ** 3), order="C")  # Order the volume lexicographically
+        Y2 = Y2.reshape((self.cube.resolution ** 3), order="C")  # Order the volume lexicographically
+        Z2 = Z2.reshape((self.cube.resolution ** 3), order="C")  # Order the volume lexicographically
+
+        Bx = self.S_x@u
+        By = self.S_y@u
+        Bz = self.S_z@u
+        B_max = max(np.linalg.norm(np.array([Bx, By, Bz]), axis = 1))
+        length = 10/self.cube.resolution
+
+
+        ax.quiver(X2, Y2, Z2, length*Bx/B_max, length*By/B_max, length*Bz/B_max, normalize=False, color = "k")
+        ax.set_xlabel("x")
+        ax.set_ylabel("y")
+        ax.set_zlabel("z")
+        
+        if save_path and view == 1:
+            ax.view_init(elev=0, azim=-90)
+            plt.savefig(save_path+"3D_flat",dpi = 400)
+        if save_path and view == 2:
+            ax.view_init(elev=48, azim=-65)
+            plt.savefig(save_path+"3D_high",dpi = 400)
+        return fig, ax
+
     
     def K_ij_x(self, x_s, y_s, i, j):
         return K0_x((x_s-self.x[i])/self.h, (y_s-self.y[j])/self.h )
@@ -577,7 +785,7 @@ class PCB_u:
         ax3.imshow(K_Y)
         return fig, ax
     
-    def plot_curl_potential(self, fig = None, ax = None, contour_lvl = False):
+    def plot_curl_potential(self, uniformity= 0, B_tot = 0, fig = None, ax = None, contour_lvl = False,save_path = False):
         if (not fig) and (not ax):
             fig, ax = plt.subplots(1,1)
         #Must be of a higher resoltion than self.x and not on the same points
@@ -588,9 +796,27 @@ class PCB_u:
         phi = np.vectorize(self.curl_potential)
         Phi = phi(X,Y)
         if contour_lvl:
-            pc = ax.contour(X, Y, Phi, levels = contour_lvl)
+            pc = ax.contour(X, Y, Phi, levels = contour_lvl,cmap = 'seismic')
             fig.colorbar(pc)
+            # ax.set_title("Wire Paths")
+            ax.set_xlabel("x [m]")
+            ax.set_ylabel("y [m]")
+            ax.set_aspect("equal")
+            if save_path:
+                plt.savefig(save_path+"Contour",dpi = 400)
+
+
         else:
+            self.calc_mag_field()
             pc = ax.pcolormesh(X,Y, Phi)
             fig.colorbar(pc)
+            title_string = "Current Potential for N = {0}, res = {1},\n V = {2:.3e}, B = {3:.3e}".format(self.M, self.cube.resolution, uniformity,B_tot)
+            ax.set_title(title_string)
+            ax.set_xlabel("x [m]")
+            ax.set_ylabel("y [m]")
+            ax.set_aspect("equal")
+            if save_path:
+                plt.savefig(save_path+"Curl_Potential",dpi = 400)
+
+
         return fig, ax
