@@ -6,15 +6,15 @@ err = 0.1
 @njit
 def B_dipole_x(x,y,z,h, err = 1e-5):
     # np.where to eliminate case of close to origin
-    return np.where(x**2+y**2+z**2 < err, 0, h**2*3/4*x*z/(x**2+y**2+z**2)**(7/2))
+    return np.where(x**2+y**2+z**2 < err, 0, h**2*3/4*x*z/(x**2+y**2+z**2)**(5/2))
 
 @njit    
 def B_dipole_y(x,y,z,h, err = 1e-5):
-    return np.where(x**2+y**2+z**2 < err, 0, h**2*3/4*y*z/(x**2+y**2+z**2)**(7/2))
+    return np.where(x**2+y**2+z**2 < err, 0, h**2*3/4*y*z/(x**2+y**2+z**2)**(5/2))
 
 @njit
 def B_dipole_z(x,y,z,h, err = 1e-5):
-    return np.where(x**2+y**2+z**2 < err, 0, h**2*3/4*z**2*(1-(x**2+y**2+z**2))/(x**2+y**2+z**2)**(7/2))
+    return np.where(x**2+y**2+z**2 < err, 0, h**2*3/4*z**2*(1-(x**2+y**2+z**2))/(x**2+y**2+z**2)**(5/2))
 
 @njit
 def B_multi_x(x,y,z, err = 1e-5):
