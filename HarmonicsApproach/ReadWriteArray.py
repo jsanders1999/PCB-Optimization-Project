@@ -47,7 +47,7 @@ def extract_subarray(array, N1, M1, N2, M2):
 
     Returns:
         ndarray: The subarray of shape [J, N1*M1].
-        
+
     """
     J = array.shape[0]
     new_array = np.zeros((J, N1*M1))
@@ -59,6 +59,7 @@ def extract_subarray(array, N1, M1, N2, M2):
 
 def TurnSxintoSy(S1, N, M):
     """
+    TODO: Find out why this doesn't work
     Converts the S matrix for the magnetic field in the x-direction to the S matrix in the y-direction., 
     Can also convert from the y direction to the x direction.
     WARING: Only works when optimizing a field in the Z direction!
@@ -73,16 +74,23 @@ def TurnSxintoSy(S1, N, M):
 
     """
     J = S1.shape[0]
+    print(J, S1.shape)
     S2 = np.zeros((J, N*M))
     for j in range(J):
-        S1_j = np.reshape(array[j,:], (N, M))
+        S1_j = np.reshape(S1[j,:], (N, M))
         S2_j = S1_j.T
-        S2[j, :] = np.reshape(new_array_j, (N * M,))
+        S2[j, :] = np.reshape(S2_j, (N * M,))
     return S2
 
 if __name__=="__main__":
-    x = np.random.normal(size=(10,16))
-    write_array_to_file(x, "HarmonicsApproach/testmatrix.txt")
+    #x = np.random.normal(size=(10,16))
+    #write_array_to_file(x, "HarmonicsApproach/testmatrix.txt")
     y = read_array_from_file("HarmonicsApproach/testmatrix.txt")
     print(y)
     print(extract_subarray(y, 2, 2, 4, 4))
+
+    x = np.array([[1,2,3,4],
+                  [5,6,7,8],
+                  [9,10,11,12],
+                  [13,14,15,16]])
+    print(TurnSxintoSy(x, 2,2))

@@ -6,42 +6,36 @@ import scipy.integrate as si
 from numba import njit, jit
 from tqdm import tqdm
 import matplotlib.pyplot as plt
-#from joblib import Parallel, delayed
+from joblib import Parallel, delayed
 
 from Streamfunctions import *
 
 ##### Integrands to find B in x, y, z #####
 
+# dBx
 @njit
-def psiz_conv_delx_harm_integrand(s, t, x, y, z, n, m):
-    return -psi_z(x-s, y-t, z)*delx_HarmStreamFunc(s,t,n,m)
+def dBx_Ztar(s, t, x, y, z, n, m):
+    return -psi_z(x-s, y-t, z)*delx_HarmStreamFunc_Ztar(s,t,n,m)
 
+#dBy
 @njit
-def psiz_conv_dely_harm_integrand(s, t, x, y, z, n, m):
-    return -psi_z(x-s, y-t, z)*dely_HarmStreamFunc(s,t,n,m)
+def dBy_Ztar(s, t, x, y, z, n, m):
+    return -psi_z(x-s, y-t, z)*dely_HarmStreamFunc_Ztar(s,t,n,m)
 
+#dBz
 @njit
-def psixy_conv_delxy_harm_integrand(s, t, x, y, z, n, m):
-    return psi_x(x-s, y-t, z)*delx_HarmStreamFunc(s,t,n,m) + psi_y(x-s, y-t, z)*dely_HarmStreamFunc(s,t,n,m)
+def dBz_Ztar(s, t, x, y, z, n, m):
+    return psi_x(x-s, y-t, z)*delx_HarmStreamFunc_Ztar(s,t,n,m) + psi_y(x-s, y-t, z)*dely_HarmStreamFunc_Ztar(s,t,n,m)
 
 #### B in x, y, z ####
-def psiz_conv_dely_harm(x, y, z, n, m): #Bx
-    return si.dblquad(psiz_conv_dely_harm_integrand, -1, 1, -1, 1, args = (x, y, z, n, m))[0]
-#psiz_conv_dely_harm = np.vectorize(psiz_conv_dely_harm)
+def Bx_harm_Ztar(x, y, z, n, m): #Bx
+    return si.dblquad(dBx_Ztar, -1, 1, -1, 1, args = (x, y, z, n, m))[0]
 
-def psiz_conv_delx_harm(x, y, z, n, m): #By
-    return si.dblquad(psiz_conv_delx_harm_integrand, -1, 1, -1, 1, args = (x, y, z, n, m))[0]
-#psiz_conv_delx_harm = np.vectorize(psiz_conv_delx_harm)
+def By_harm_Ztar(x, y, z, n, m): #By
+    return si.dblquad(dBy_Ztar, -1, 1, -1, 1, args = (x, y, z, n, m))[0]
 
-def psixy_conv_delxy_harm(x, y, z, n, m): #Bz
-    return si.dblquad(psixy_conv_delxy_harm_integrand, -1, 1, -1, 1, args = (x, y, z, n, m))[0]
-#psixy_conv_delxy_harm = np.vectorize(psixy_conv_delxy_harm)
-
-def Test_Conv():
-    print(psiz_conv_dely_harm(0.5, 0.5, 0.5, 0, 0,))
-    print(psiz_conv_delx_harm(1.0, 1.5, 2.5, 0, 0,))
-    print(psixy_conv_delxy_harm(0.5, 0.5, 0.5, 0, 0))
-    return
+def Bz_harm_Ztar(x, y, z, n, m): #Bz
+    return si.dblquad(dBz_Ztar, -1, 1, -1, 1, args = (x, y, z, n, m))[0]
 
 
 #### The system matrices (steam functions coeffficients |--> Magnetic field at grid points in target volume ) ####
@@ -50,35 +44,37 @@ def AssembleSx(N, M, resolution, Omega = [-1.0, 1.0, -1.0, 1.0], V = [-0.5, 0.5,
     x = np.linspace(V[0], V[1], resolution) #Discretize the target volume into a grid
     y = np.linspace(V[2], V[3], resolution)
     z = np.linspace(V[4], V[5], resolution)
-    X, Y, Z = np.meshgrid(x, y, z)
-    X = X.reshape((resolution**3), order = "C") #order the volume lexographically
-    Y = Y.reshape((resolution**3), order = "C") #order the volume lexographically
-    Z = Z.reshape((resolution**3), order = "C") #order the volume lexographically
+    Z, Y, X = np.meshgrid(z, y, x, indexing='ij')
+    X = X.reshape((int(resolution**3)), order = "C") #order the volume lexographically
+    Y = Y.reshape((int(resolution**3)), order = "C") #order the volume lexographically
+    Z = Z.reshape((int(resolution**3)), order = "C") #order the volume lexographically
+
 
     Sx = np.zeros((resolution**3, NM))
     for i in tqdm(range(resolution**3), "Assembling Sx"):
         for j in range(NM):
             m = j//N
             n = j%N
-            Sx[i,j] = psiz_conv_delx_harm(X[i], Y[i], Z[i], n, m)
+            Sx[i,j] = Bx_harm_Ztar(X[i], Y[i], Z[i], n, m)
     return Sx
+
 
 def AssembleSy(N, M, resolution, Omega = [-1.0, 1.0, -1.0, 1.0], V = [-0.5, 0.5,  -0.5, 0.5,  0.1, 1.1]):
     NM = N*M
     x = np.linspace(V[0], V[1], resolution) #Discretize the target volume into a grid
     y = np.linspace(V[2], V[3], resolution)
     z = np.linspace(V[4], V[5], resolution)
-    X, Y, Z = np.meshgrid(x, y, z)
-    X = X.reshape((resolution**3), order = "C") #order the volume lexographically
-    Y = Y.reshape((resolution**3), order = "C") #order the volume lexographically
-    Z = Z.reshape((resolution**3), order = "C") #order the volume lexographically
+    Z, Y, X = np.meshgrid(z, y, x, indexing='ij')
+    X = X.reshape((int(resolution**3)), order = "C") #order the volume lexographically
+    Y = Y.reshape((int(resolution**3)), order = "C") #order the volume lexographically
+    Z = Z.reshape((int(resolution**3)), order = "C") #order the volume lexographically
 
     Sy = np.zeros((resolution**3, NM))
     for i in tqdm(range(resolution**3), "Assembling Sy"):
         for j in range(NM):
             m = j//N
             n = j%N
-            Sy[i,j] = psiz_conv_dely_harm(X[i], Y[i], Z[i], n, m)
+            Sy[i,j] = By_harm_Ztar(X[i], Y[i], Z[i], n, m)
     return Sy
 
 def AssembleSz(N, M, resolution, Omega = [-1.0, 1.0, -1.0, 1.0], V = [-0.5, 0.5,  -0.5, 0.5,  0.1, 1.1]):
@@ -86,17 +82,17 @@ def AssembleSz(N, M, resolution, Omega = [-1.0, 1.0, -1.0, 1.0], V = [-0.5, 0.5,
     x = np.linspace(V[0], V[1], resolution) #Discretize the target volume into a grid
     y = np.linspace(V[2], V[3], resolution)
     z = np.linspace(V[4], V[5], resolution)
-    X, Y, Z = np.meshgrid(x, y, z)
-    X = X.reshape((resolution**3), order = "C") #order the volume lexographically
-    Y = Y.reshape((resolution**3), order = "C") #order the volume lexographically
-    Z = Z.reshape((resolution**3), order = "C") #order the volume lexographically
+    Z, Y, X = np.meshgrid(z, y, x, indexing='ij')
+    X = X.reshape((int(resolution**3)), order = "C") #order the volume lexographically
+    Y = Y.reshape((int(resolution**3)), order = "C") #order the volume lexographically
+    Z = Z.reshape((int(resolution**3)), order = "C") #order the volume lexographically
 
     Sz = np.zeros((resolution**3, NM))
     for i in tqdm(range(resolution**3), "Assembling Sz"):
         for j in range(NM):
             m = j//N
             n = j%N
-            Sz[i,j] = psixy_conv_delxy_harm(X[i], Y[i], Z[i], n, m)
+            Sz[i,j] = Bz_harm_Ztar(X[i], Y[i], Z[i], n, m)
     return Sz
 
 #### The system matrices (steam functions coeffficients |--> Magnetic field at grid points in target volume ) ####
@@ -115,7 +111,7 @@ def AssembleSxSymm(N, M, resolution, Omega = [-1.0, 1.0, -1.0, 1.0], V = [-0.5, 
         for j in range(NM):
             m = j//N
             n = j%N
-            Sx[i,j] = psiz_conv_delx_harm(X[i], Y[i], Z[i], n, m)
+            Sx[i,j] = Bx_harm_Ztar(X[i], Y[i], Z[i], n, m)
     Sx_full = np.concatenate([Sx, -Sx, Sx, -Sx], axis = 0)
     return Sx_full
 
@@ -134,7 +130,7 @@ def AssembleSySymm(N, M, resolution, Omega = [-1.0, 1.0, -1.0, 1.0], V = [-0.5, 
         for j in range(NM):
             m = j//N
             n = j%N
-            Sy[i,j] = psiz_conv_dely_harm(X[i], Y[i], Z[i], n, m)
+            Sy[i,j] = By_harm_Ztar(X[i], Y[i], Z[i], n, m)
     Sy_full = np.concatenate([Sy, Sy, -Sy, -Sy], axis = 0)
     return Sy_full
 
@@ -153,7 +149,7 @@ def AssembleSzSymm(N, M, resolution, Omega = [-1.0, 1.0, -1.0, 1.0], V = [-0.5, 
         for j in range(NM):
             m = j//N
             n = j%N
-            Sz[i,j] = psixy_conv_delxy_harm(X[i], Y[i], Z[i], n, m)
+            Sz[i,j] = Bz_harm_Ztar(X[i], Y[i], Z[i], n, m)
     Sz_full = np.concatenate([Sz, Sz, Sz, Sz], axis = 0)
     return Sz_full
 
@@ -184,7 +180,7 @@ def AssembleSxSurf(N, M, resolution, Omega = [-1.0, 1.0, -1.0, 1.0], V = [-0.5, 
         for j in range(NM):
             m = j//N
             n = j%N
-            Sx[i,j] = psiz_conv_delx_harm(X_new[i], Y_new[i], Z_new[i], n, m)
+            Sx[i,j] = Bx_harm_Ztar(X_new[i], Y_new[i], Z_new[i], n, m)
     return Sx
 
 def AssembleSySurf(N, M, resolution, Omega = [-1.0, 1.0, -1.0, 1.0], V = [-0.5, 0.5,  -0.5, 0.5,  0.1, 1.1]):
@@ -217,7 +213,7 @@ def AssembleSySurf(N, M, resolution, Omega = [-1.0, 1.0, -1.0, 1.0], V = [-0.5, 
         for j in range(NM):
             m = j//N
             n = j%N
-            Sy[i,j] = psiz_conv_dely_harm(X_new[i], Y_new[i], Z_new[i], n, m)
+            Sy[i,j] = By_harm_Ztar(X_new[i], Y_new[i], Z_new[i], n, m)
     return Sy
 
 def AssembleSzSurf(N, M, resolution, Omega = [-1.0, 1.0, -1.0, 1.0], V = [-0.5, 0.5,  -0.5, 0.5,  0.1, 1.1]):
@@ -245,7 +241,7 @@ def AssembleSzSurf(N, M, resolution, Omega = [-1.0, 1.0, -1.0, 1.0], V = [-0.5, 
         for j in range(NM):
             m = j//N
             n = j%N
-            Sz[i,j] = psixy_conv_delxy_harm(X_new[i], Y_new[i], Z_new[i], n, m)
+            Sz[i,j] = Bz_harm_Ztar(X_new[i], Y_new[i], Z_new[i], n, m)
     return Sz
 
 def AssembleSxSurfZSym(N, M, resolution, Omega = [-1.0, 1.0, -1.0, 1.0], V = [-0.5, 0.5,  -0.5, 0.5,  0.1, 1.1]):
@@ -283,7 +279,7 @@ def AssembleSxSurfZSym(N, M, resolution, Omega = [-1.0, 1.0, -1.0, 1.0], V = [-0
         for j in range(NM):
             m = j//N
             n = j%N
-            Sx[i,j] = psiz_conv_delx_harm(X_new[i], Y_new[i], Z_new[i], n, m)
+            Sx[i,j] = Bx_harm_Ztar(X_new[i], Y_new[i], Z_new[i], n, m)
 
     Sx_full = np.concatenate([Sx,-Sx, Sx, -Sx], axis = 0) #np.zeros((resolution**3-(resolution-2)**3, NM))
     #The ordering of the grid points in sx_full does not matter for the optimization!
@@ -334,7 +330,7 @@ def AssembleSySurfZSym(N, M, resolution, Omega = [-1.0, 1.0, -1.0, 1.0], V = [-0
         for j in range(NM):
             m = j//N
             n = j%N
-            Sy[i,j] = psiz_conv_dely_harm(X_new[i], Y_new[i], Z_new[i], n, m)
+            Sy[i,j] = By_harm_Ztar(X_new[i], Y_new[i], Z_new[i], n, m)
 
     Sy_full = np.concatenate([Sy,Sy, -Sy, -Sy], axis = 0)#Sy_full = np.zeros((resolution**3-(resolution-2)**3, NM))
     #The ordering of the grid points in sx_full does not matter for the optimization!
@@ -380,7 +376,7 @@ def AssembleSzSurfZSym(N, M, resolution, Omega = [-1.0, 1.0, -1.0, 1.0], V = [-0
         for j in range(NM):
             m = j//N
             n = j%N
-            Sz[i,j] = psixy_conv_delxy_harm(X_new[i], Y_new[i], Z_new[i], n, m)
+            Sz[i,j] = Bz_harm_Ztar(X_new[i], Y_new[i], Z_new[i], n, m)
 
     Sz_full = np.concatenate([Sz, Sz, Sz, Sz], axis = 0)#Sz_full = np.zeros((resolution**3-(resolution-2)**3, NM))
     #The ordering of the grid points in sx_full does not matter for the optimization!
@@ -391,63 +387,204 @@ def AssembleSzSurfZSym(N, M, resolution, Omega = [-1.0, 1.0, -1.0, 1.0], V = [-0
                 
     return Sz_full
 
+
+def AssembleSxSymBetter(N, M, resolution, Omega = [-1.0, 1.0, -1.0, 1.0], V = [-0.5, 0.5,  -0.5, 0.5,  0.1, 1.1]):
+    NM = N*M
+    x = np.linspace(V[0], V[1], resolution) #Discretize the target volume into a grid
+    y = np.linspace(V[2], V[3], resolution)
+    z = np.linspace(V[4], V[5], resolution)
+    Z, Y, X = np.meshgrid(z, y, x, indexing='ij')
+    X = X.reshape((int(resolution**3)), order = "C") #order the volume lexographically
+    Y = Y.reshape((int(resolution**3)), order = "C") #order the volume lexographically
+    Z = Z.reshape((int(resolution**3)), order = "C") #order the volume lexographically
+
+    S = np.zeros((resolution**3, NM))
+    
+    for iz in range(resolution):
+        for iy in range(int(resolution/2)):
+            for ix in range(int(resolution/2)):
+                i1 = iz*resolution**2 + iy*resolution + ix  #-x, -y quadrant
+                i2 = iz*resolution**2 + (resolution-1-iy)*resolution + ix #-x, +y quandrant
+                i3 = iz*resolution**2 + (resolution-1-iy)*resolution + (resolution-1-ix) #+x, +y quadrant
+                i4 = iz*resolution**2 + iy*resolution + (resolution-1-ix) #+x, -y quandrant
+        
+                for j in range(NM):
+                    
+                    m = j//N #Harmonic number i y dir
+                    n = j%N #Harmonic number in x dir
+                    
+                    #Calculate the integral for the first quadrant
+                    temp = Bx_harm(X[i1], Y[i1], Z[i1], n, m)
+                    S[i1,j] = temp
+                    S[i2,j] = temp
+                    S[i3,j] = -temp
+                    S[i4,j] = -temp
+    return S
+
+def AssembleSySymBetter(N, M, resolution, Omega = [-1.0, 1.0, -1.0, 1.0], V = [-0.5, 0.5,  -0.5, 0.5,  0.1, 1.1]):
+    NM = N*M
+    x = np.linspace(V[0], V[1], resolution) #Discretize the target volume into a grid
+    y = np.linspace(V[2], V[3], resolution)
+    z = np.linspace(V[4], V[5], resolution)
+    Z, Y, X = np.meshgrid(z, y, x, indexing='ij')
+    X = X.reshape((int(resolution**3)), order = "C") #order the volume lexographically
+    Y = Y.reshape((int(resolution**3)), order = "C") #order the volume lexographically
+    Z = Z.reshape((int(resolution**3)), order = "C") #order the volume lexographically
+
+    S = np.zeros((resolution**3, NM))
+    
+    for iz in range(resolution):
+        for iy in range(int(resolution/2)):
+            for ix in range(int(resolution/2)):
+                i1 = iz*resolution**2 + iy*resolution + ix  #-x, -y quadrant
+                i2 = iz*resolution**2 + (resolution-1-iy)*resolution + ix #-x, +y quandrant
+                i3 = iz*resolution**2 + (resolution-1-iy)*resolution + (resolution-1-ix) #+x, +y quadrant
+                i4 = iz*resolution**2 + iy*resolution + (resolution-1-ix) #+x, -y quandrant
+        
+                for j in range(NM):
+                    
+                    m = j//N #Harmonic number i y dir
+                    n = j%N #Harmonic number in x dir
+                    
+                    #Calculate the integral for the first quadrant
+                    temp = By_harm_Ztar(X[i1], Y[i1], Z[i1], n, m)
+                    S[i1,j] = temp
+                    S[i2,j] = -temp
+                    S[i3,j] = -temp
+                    S[i4,j] = temp
+    return S
+
+def AssembleSzSymBetter(N, M, resolution, Omega = [-1.0, 1.0, -1.0, 1.0], V = [-0.5, 0.5,  -0.5, 0.5,  0.1, 1.1]):
+    NM = N*M
+    x = np.linspace(V[0], V[1], resolution) #Discretize the target volume into a grid
+    y = np.linspace(V[2], V[3], resolution)
+    z = np.linspace(V[4], V[5], resolution)
+    Z, Y, X = np.meshgrid(z, y, x, indexing='ij')
+    X = X.reshape((int(resolution**3)), order = "C") #order the volume lexographically
+    Y = Y.reshape((int(resolution**3)), order = "C") #order the volume lexographically
+    Z = Z.reshape((int(resolution**3)), order = "C") #order the volume lexographically
+
+    S = np.zeros((resolution**3, NM))
+    
+    for iz in range(resolution):
+        for iy in range(int(resolution/2)):
+            for ix in range(int(resolution/2)):
+                i1 = iz*resolution**2 + iy*resolution + ix  #-x, -y quadrant
+                i2 = iz*resolution**2 + (resolution-1-iy)*resolution + ix #-x, +y quandrant
+                i3 = iz*resolution**2 + (resolution-1-iy)*resolution + (resolution-1-ix) #+x, +y quadrant
+                i4 = iz*resolution**2 + iy*resolution + (resolution-1-ix) #+x, -y quandrant
+        
+                for j in range(NM):
+                    
+                    m = j//N #Harmonic number i y dir
+                    n = j%N #Harmonic number in x dir
+                    
+                    #Calculate the integral for the first quadrant
+                    temp = Bz_harm_Ztar(X[i1], Y[i1], Z[i1], n, m)
+                    S[i1,j] = temp
+                    S[i2,j] = temp
+                    S[i3,j] = temp
+                    S[i4,j] = temp
+    return S
+
+def AssembleSzSymmBetterBetter(N, M, resolution, Omega = [-1.0, 1.0, -1.0, 1.0], V = [-0.5, 0.5,  -0.5, 0.5,  0.1, 1.1]):
+    NM = N*M
+    x = np.linspace(V[0], V[1], resolution)[:int(resolution/2)] #Discretize the target volume into a grid
+    y = np.linspace(V[2], V[3], resolution)[:int(resolution/2)]
+    z = np.linspace(V[4], V[5], resolution)
+    Z, Y, X = np.meshgrid(z, y, x, indexing='ij')
+    X = X.reshape((int(resolution**3/4)), order = "C") #order the volume lexographically
+    Y = Y.reshape((int(resolution**3/4)), order = "C") #order the volume lexographically
+    Z = Z.reshape((int(resolution**3/4)), order = "C") #order the volume lexographically
+
+    S_temp = np.zeros((int(resolution**3/4), NM))
+    for i in tqdm(range(int(resolution**3/4)), "Assembling Sz"):
+        for j in range(NM):
+            m = j//N
+            n = j%N
+            S_temp[i,j] = Bz_harm_Ztar(X[i], Y[i], Z[i], n, m)
+
+    S = np.zeros((resolution**3, NM))
+    
+    for iz in range(resolution):
+        for iy in range(int(resolution/2)):
+            for ix in range(int(resolution/2)):
+                i1 = iz*resolution**2 + iy*resolution + ix  #-x, -y quadrant
+                i2 = iz*resolution**2 + (resolution-1-iy)*resolution + ix #-x, +y quandrant
+                i3 = iz*resolution**2 + (resolution-1-iy)*resolution + (resolution-1-ix) #+x, +y quadrant
+                i4 = iz*resolution**2 + iy*resolution + (resolution-1-ix) #+x, -y quandrant
+        
+                for j in range(NM):
+                    
+                    m = j//N #Harmonic number i y dir
+                    n = j%N #Harmonic number in x dir
+                    
+                    #Calculate the integral for the first quadrant
+                    temp = S_temp[iz*(int(resolution/2))**2 + iy*int(resolution/2) + ix, j]
+                    S[i1,j] = temp
+                    S[i2,j] = temp
+                    S[i3,j] = temp
+                    S[i4,j] = temp
+
+    return S
+
+def P_AssembleSzSymmBetterBetter(N, M, resolution, Omega = [-1.0, 1.0, -1.0, 1.0], V = [-0.5, 0.5,  -0.5, 0.5,  0.1, 1.1]):
+    NM = N*M
+    x = np.linspace(V[0], V[1], resolution)[:int(resolution/2)] #Discretize the target volume into a grid
+    y = np.linspace(V[2], V[3], resolution)[:int(resolution/2)]
+    z = np.linspace(V[4], V[5], resolution)
+    Z, Y, X = np.meshgrid(z, y, x, indexing='ij')
+    X = X.reshape((int(resolution**3/4)), order = "C") #order the volume lexographically
+    Y = Y.reshape((int(resolution**3/4)), order = "C") #order the volume lexographically
+    Z = Z.reshape((int(resolution**3/4)), order = "C") #order the volume lexographically
+
+    def compute_s(i):
+        temp_s = np.zeros(NM)
+        for j in range(NM):
+            m = j // N
+            n = j % N
+            temp_s[j] = Bz_harm_Ztar(X[i], Y[i], Z[i], n, m)
+        return temp_s
+
+    S_temp = np.array(
+        Parallel(n_jobs=-1)(
+            delayed(compute_s)(i) for i in tqdm(range(int(resolution ** 3 / 4)), f"Assembling Sz for the Full Volume using symmetry")
+        )
+    )
+
+    S = np.zeros((resolution**3, NM))
+    
+    for iz in range(resolution):
+        for iy in range(int(resolution/2)):
+            for ix in range(int(resolution/2)):
+                i1 = iz*resolution**2 + iy*resolution + ix  #-x, -y quadrant
+                i2 = iz*resolution**2 + (resolution-1-iy)*resolution + ix #-x, +y quandrant
+                i3 = iz*resolution**2 + (resolution-1-iy)*resolution + (resolution-1-ix) #+x, +y quadrant
+                i4 = iz*resolution**2 + iy*resolution + (resolution-1-ix) #+x, -y quandrant
+        
+                for j in range(NM):
+                    
+                    m = j//N #Harmonic number i y dir
+                    n = j%N #Harmonic number in x dir
+                    
+                    #Calculate the integral for the first quadrant
+                    temp = S_temp[iz*(int(resolution/2))**2 + iy*int(resolution/2) + ix, j]
+                    S[i1,j] = temp
+                    S[i2,j] = temp
+                    S[i3,j] = temp
+                    S[i4,j] = temp
+
+    return S
+
+
+
+
 if __name__=="__main__":
     #AssembleSySurf(2, 2, 4, Omega = [-1.0, 1.0, -1.0, 1.0], V = [-0.5, 0.5,  -0.5, 0.5,  0.1, 1.1])
-    Sy1 = AssembleSx(2, 2, 6, Omega = [-1.0, 1.0, -1.0, 1.0], V = [-0.5, 0.5,  -0.5, 0.5,  0.1, 1.1])
-    Sy2 = AssembleSxSymm(2, 2, 6, Omega = [-1.0, 1.0, -1.0, 1.0], V = [-0.5, 0.5,  -0.5, 0.5,  0.1, 1.1])
-    print(np.linalg.norm(Sy1.T@Sy1-Sy2.T@Sy2))
+    S1 = AssembleSz(4, 4, 8, Omega = [-1.0, 1.0, -1.0, 1.0], V = [-0.5, 0.5,  -0.5, 0.5,  0.1, 1.1])
+    S2 = P_AssembleSzSymmBetterBetter(4, 4, 8, Omega = [-1.0, 1.0, -1.0, 1.0], V = [-0.5, 0.5,  -0.5, 0.5,  0.1, 1.1])
+    print(np.linalg.norm(S1.T@S1-S2.T@S2))
+    print(S1-S2)
 
 
-
-    
-
-
-
-
-
-
-
-
-
-
-
-#### The Q inner product ####
-#def Qprod_integrand(x, y, z, p, q, n, m): #domain2d = [-1, 1, -1, 1]):
-#    return psiz_conv_dely_harm(x, y, z, p, q)*psiz_conv_dely_harm(x, y, z, n, m)\
-#         + psiz_conv_delx_harm(x, y, z, p, q)*psiz_conv_delx_harm(x, y, z, n, m)\
-#         + psixy_conv_delxy_harm(x, y, z, p, q)*psixy_conv_delxy_harm(x, y, z, n, m)
-#Qprod_integrand = np.vectorize(Qprod_integrand)
-
-#def Qprod(p, q, n, m, Omega = [-1.0, 1.0, -1.0, 1.0], V = [-0.5, 0.5, -0.5, 0.5, 0.1, 1.1]):
-#    # int(int(int(  (-psi_z conv dely_stream)**2 + (-psi_z conv delx_stream )**2  + (  )**2 )))
-#    return si.tplquad(Qprod_integrand, *V, args = (p, q, n, m))[0] 
-
-# def Qprod_num(p, q, n, m, Omega = [-1.0, 1.0, -1.0, 1.0], V = [-0.5, 0.5, -0.5, 0.5, 0.1, 1.1]):
-#     res = 8
-#     x = np.linspace(-0.5,0.5,res)
-#   
-#   y = np.linspace(-0.5,0.5,res)
-#     z = np.linspace(0.1,1.1,res)
-#     X, Y, Z = np.meshgrid(x, y, z)
-#     # int(int(int(  (-psi_z conv dely_stream)**2 + (-psi_z conv delx_stream )**2  + (  )**2 )))
-#     return np.sum(Qprod_integrand(X,Y,Z, p, q, n, m))/res**3
-
-
-#### The R inner product ####
-#def Rprod(Omega = [[-1.0, 1.0], [-1.0, 1.0]], V = [[-0.5, 0.5], [-0.5, 0.5], [0.1, 1.1]]):
-#    return
-
-#### The P inner product ####
-#def Pprod(Omega = [[-1.0, 1.0], [-1.0, 1.0]]):
-#    #NOTE: CAN BE DONE ANANLYTICALLY
-#    return
-
-#def AssembleQ(NM, Omega = [[-1.0, 1.0], [-1.0, 1.0]], V = [[-0.5, 0.5], [-0.5, 0.5], [0.1, 1.1]]):
-#    Q = np.zeros((NM, NM))
-#    for i in range(NM):
-#        for j in range(i,NM):
-#            n = 0 ## make i lexographic
-#            m = 0 ## make j lexographic
-#            Q[i,j] = Qprod(n,m, Omega, V)
-#            Q[j,i] = Q[i,j]
 
